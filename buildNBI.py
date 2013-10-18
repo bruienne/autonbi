@@ -1,4 +1,9 @@
 #!/usr/bin/python
+#
+# buildNBI.py - A tool to automate (or not) the building and modifying of Apple NetBoot NBI bundles
+#
+# Requirements: OS X 10.9 Mavericks - This tool relies on the 'imagetool' which AFAIK didn't ship prior to OS X 10.9
+#
 
 import os
 import sys
