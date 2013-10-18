@@ -27,6 +27,11 @@ import plistlib
 from xml.dom import minidom
 from xml.parsers.expat import ExpatError
 
+def cleanUp():
+    '''Cleanup our TMPDIR'''
+    if TMPDIR:
+        shutil.rmtree(TMPDIR, ignore_errors=True)
+
 def fail(errmsg=''):
     '''Print any error message to stderr,
     clean up install data, and exit'''
@@ -35,11 +40,6 @@ def fail(errmsg=''):
     cleanUp()
     # exit
     exit(1)
-
-def cleanUp():
-    '''Cleanup our TMPDIR'''
-    if TMPDIR:
-        shutil.rmtree(TMPDIR, ignore_errors=True)
 
 def mountdmg(dmgpath, use_shadow=False):
     """
@@ -71,44 +71,6 @@ def mountdmg(dmgpath, use_shadow=False):
 
     return mountpoints, shadowpath
 
-def expandOSInstallMpkg(osinstall_mpkg):
-    '''Expands the flat OSInstall.mpkg We need the Distribution file
-    and some .strings files from within. Returns path to the exapnded
-    package.'''
-    expanded_osinstall_mpkg = os.path.join(TMPDIR, 'OSInstall_mpkg')
-    cmd = ['/usr/sbin/pkgutil', '--expand', osinstall_mpkg,
-           expanded_osinstall_mpkg]
-    try:
-        subprocess.check_call(cmd)
-    except subprocess.CalledProcessError:
-        fail('Failed to expand %s' % osinstall_mpkg)
-    return expanded_osinstall_mpkg
-
-def getOSversionInfoFromDist(distfile):
-    '''Gets osVersion and osBuildVersion if present in
-    dist file for OSXInstall.mpkg'''
-    try:
-        dom = minidom.parse(distfile)
-    except ExpatError, err:
-        print >> sys.stderr, 'Error parsing %s: %s' % (distfile, err)
-        return None, None
-    osVersion = None
-    osBuildVersion = None
-    elements = dom.getElementsByTagName('options')
-    print elements
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    if len(elements):
-        options = elements[0]
-        print options
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-        if 'osVersion' in options.attributes.keys():
-            osVersion = options.attributes['osVersion'].value
-        if 'osBuildVersion' in options.attributes.keys():
-            osBuildVersion = options.attributes['osBuildVersion'].value
-    return osVersion, osBuildVersion
-
 def unmountdmg(mountpoint):
     """
     Unmounts the dmg at mountpoint
@@ -126,6 +88,29 @@ def unmountdmg(mountpoint):
         if retcode:
             print >> sys.stderr, 'Failed to unmount %s' % mountpoint
 
+def getOSversionInfo(mountpoint):
+    # get info from BaseSystem.dmg
+    basesystem_dmg = os.path.join(mountpoint, 'BaseSystem.dmg')
+    if not os.path.isfile(basesystem_dmg):
+        unmountdmg(mountpoint)
+        fail('Missing BaseSystem.dmg in %s'% source)
+        
+    basesystemmountpoints, unused_shadowpath = mountdmg(basesystem_dmg)
+    basesystemmountpoint = basesystemmountpoints[0]
+    system_version_plist = os.path.join(
+        basesystemmountpoint, 
+        'System/Library/CoreServices/SystemVersion.plist')
+    try:
+        version_info = plistlib.readPlist(system_version_plist)
+    except (ExpatError, IOError), err:
+        unmountdmg(basesystemmountpoint)
+        unmountdmg(mountpoint)
+        fail('Could not read %s: %s' % (system_version_plist, err))
+    else:
+        unmountdmg(basesystemmountpoint)
+
+    return version_info.get('ProductUserVisibleVersion'), version_info.get('ProductBuildVersion')
+
 def buildPlist(source = '', dest = __file__, name = ''):
     """buildPlist takes a source, destination and name parameter that are used
         to create a valid plist for imagetool ingestion."""
@@ -138,41 +123,30 @@ def buildPlist(source = '', dest = __file__, name = ''):
         destdir = dest
 
     dmgpath = os.path.join(source, 'Contents/SharedSupport/InstallESD.dmg')
-
+    
+    os_version = None
+    os_build = None
+    
     mountpoints = mountdmg(dmgpath)
-    print mountpoints
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
     for mount in mountpoints[0]:
-        print mount
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
         if mount.find('dmg'):
-            expanded_osinstall_mpkg = expandOSInstallMpkg(os.path.join(mount, 'Packages', 'OSInstall.mpkg'))
-            print expanded_osinstall_mpkg
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-            distpath = os.path.join(expanded_osinstall_mpkg, 'Distribution')
-            print distpath
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-            os_version, os_build = getOSversionInfoFromDist(distpath)
+            os_version, os_build = getOSversionInfo(mount)
             print os_version, os_build
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
         unmountdmg(mount)
     
-    randomize = '_' + "".join([random.choice(string.ascii_uppercase) for x in xrange(8)])
+    # randomize = '_' + "".join([random.choice(string.ascii_uppercase) for x in xrange(8)])
 
     baselocation = os.path.join(destdir , name)
-    plistfile = baselocation + '_' + randomize + '.plist'
+    # plistfile = baselocation + '_' + randomize + '.plist'
+    build_version = '_' + os_version + '_' + os_build
+    plistfile = os.path.join(baselocation + build_version + '.plist')
+    print plistfile
     nbilocation = baselocation
 
     index = 5000 # TBD: figure out a way to keep track of previous idxs
     
     # Initialize an empty dict that will hold the plist contents
     nbiconfig = {}
-    
     nbiconfig['automatedInstall'] = \
                 {'eraseTarget': True, \
                  'language': 'en', \
@@ -186,7 +160,7 @@ def buildPlist(source = '', dest = __file__, name = ''):
                   'volumePath': source}]
     nbiconfig['imageDescription'] = 'Auto-build of ' + name
     nbiconfig['imageIndex'] = index
-    nbiconfig['imageName'] = name + randomize
+    nbiconfig['imageName'] = name + build_version
     nbiconfig['installType'] = 'netinstall'
     nbiconfig['nbiLocation'] = nbilocation
     
