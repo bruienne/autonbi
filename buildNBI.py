@@ -14,9 +14,11 @@ def buildPlist(source = '', dest = __file__, name = ''):
         destdir = os.path.dirname(dest)
     else:
         destdir = dest
-    
-    plistfile = os.path.join(destdir , name + '.plist')
-    print plistfile
+
+    baselocation = os.path.join(destdir , name)
+    plistfile = baselocation + '.plist'
+    nbilocation = baselocation
+    # print plistfile
 
     dmgpath = os.path.join(source, 'Contents/SharedSupport/InstallESD.dmg')
     index = 5000 # TBD: figure out a way to keep track of previous idxs
@@ -30,14 +32,14 @@ def buildPlist(source = '', dest = __file__, name = ''):
     nbiconfig['imageIndex'] = index
     nbiconfig['imageName'] = name
     nbiconfig['installType'] = 'netinstall'
-    nbiconfig['nbiLocation'] = destdir
+    nbiconfig['nbiLocation'] = nbilocation
     
     # Write out the now-complete dict as a standard plist to our previously configured destination file
     FoundationPlist.writePlist(nbiconfig, plistfile)
     
     # Return the path to the configuration plist to the caller
-    # return plistfile
-    return nbiconfig, plistfile
+    return plistfile
+    # return nbiconfig
 
 def locateInstallers(rootpath = '/Applications', auto = False):
     """docstring for locateInstallers"""
@@ -91,7 +93,7 @@ def pickInstaller(installers):
 def createNBI(plist):
     """docstring for createNBI"""
     cmd = "/System/Library/CoreServices/System\ Image\ Utility.app/Contents/MacOS/imagetool"
-    options = ' --plist ' + plist# + ' > /dev/null 2>&1'
+    options = ' --plist ' + plist + ' > /dev/null 2>&1'
     fullcmd = cmd + options
     print fullcmd
     subprocess.call(fullcmd, shell=True)
@@ -111,17 +113,13 @@ def main():
     
     if len(source) > 1:
         source = pickInstaller(source)
-        plistfile = buildPlist(source, __file__, 'TESTING')
+        plistfile = buildPlist(source, '/Users/bruienne/Desktop', 'TESTING')
     else:
-        plistfile = buildPlist(source, __file__, 'TESTING')
+        plistfile = buildPlist(source, '/Users/bruienne/Desktop', 'TESTING')
     
-    print plistfile
+    # print plistfile
     
+    createNBI(plistfile)
 
 if __name__ == '__main__':
     main()
-
-# plist = buildPlist()
-# createNBI(plist)
-
-# plist = '/Users/bruienne/Desktop/NetInstall\ of\ Install\ OS\ X\ Mavericks.plist'
