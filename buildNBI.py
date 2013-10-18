@@ -41,8 +41,8 @@ def buildPlist(source = '', dest = __file__, name = ''):
     return plistfile
     # return nbiconfig
 
-def locateInstallers(rootpath = '/Applications', auto = False):
-    """docstring for locateInstallers"""
+def locateInstaller(rootpath = '/Applications', auto = False):
+    """docstring for locateInstaller"""
     
     if not os.path.exists(rootpath):
         print "The root path " + rootpath + " is not a valid path - unable to proceed."
@@ -97,7 +97,6 @@ def createNBI(plist):
     fullcmd = cmd + options
     print fullcmd
     subprocess.call(fullcmd, shell=True)
-    # subprocess.call(fullcmd, shell=True)
 
 def convertNBI(mode = 'rw'):
     pass
@@ -109,13 +108,13 @@ def modifyNBI(items = None):
 def main():
     """docstring for main"""
 
-    source = locateInstallers('/Applications')
+    source = locateInstaller('/Applications')
     
     if len(source) > 1:
         source = pickInstaller(source)
-        plistfile = buildPlist(source, '/Users/bruienne/Desktop', 'TESTING')
+        plistfile = buildPlist(source, '/Users/bruienne/source/buildNBI/build', 'TESTING')
     else:
-        plistfile = buildPlist(source, '/Users/bruienne/Desktop', 'TESTING')
+        plistfile = buildPlist(source, '/Users/bruienne/source/buildNBI/build', 'TESTING')
     
     # print plistfile
     
