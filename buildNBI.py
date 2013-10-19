@@ -23,6 +23,7 @@ import FoundationPlist
 
 import subprocess
 import plistlib
+import optparse
 
 from xml.dom import minidom
 from xml.parsers.expat import ExpatError
@@ -58,7 +59,7 @@ def mountdmg(dmgpath, use_shadow=False):
         cmd.extend(['-shadow', shadowpath])
     else:
         shadowpath = None
-    proc = subprocess.Popen(cmd, bufsize=-1, 
+    proc = subprocess.Popen(cmd, bufsize=-1,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (pliststr, err) = proc.communicate()
     if proc.returncode:
@@ -94,11 +95,11 @@ def getOSversionInfo(mountpoint):
     if not os.path.isfile(basesystem_dmg):
         unmountdmg(mountpoint)
         fail('Missing BaseSystem.dmg in %s'% source)
-        
+
     basesystemmountpoints, unused_shadowpath = mountdmg(basesystem_dmg)
     basesystemmountpoint = basesystemmountpoints[0]
     system_version_plist = os.path.join(
-        basesystemmountpoint, 
+        basesystemmountpoint,
         'System/Library/CoreServices/SystemVersion.plist')
     try:
         version_info = plistlib.readPlist(system_version_plist)
@@ -123,28 +124,27 @@ def buildPlist(source = '', dest = __file__, name = ''):
         destdir = dest
 
     dmgpath = os.path.join(source, 'Contents/SharedSupport/InstallESD.dmg')
-    
+
     os_version = None
     os_build = None
-    
+
     mountpoints = mountdmg(dmgpath)
     for mount in mountpoints[0]:
         if mount.find('dmg'):
             os_version, os_build = getOSversionInfo(mount)
-            print os_version, os_build
+            # print os_version, os_build
         unmountdmg(mount)
-    
+
     # randomize = '_' + "".join([random.choice(string.ascii_uppercase) for x in xrange(8)])
 
     baselocation = os.path.join(destdir , name)
     # plistfile = baselocation + '_' + randomize + '.plist'
     build_version = '_' + os_version + '_' + os_build
     plistfile = os.path.join(baselocation + build_version + '.plist')
-    print plistfile
     nbilocation = baselocation
 
     index = 5000 # TBD: figure out a way to keep track of previous idxs
-    
+
     # Initialize an empty dict that will hold the plist contents
     nbiconfig = {}
     nbiconfig['automatedInstall'] = \
@@ -162,33 +162,33 @@ def buildPlist(source = '', dest = __file__, name = ''):
     nbiconfig['imageIndex'] = index
     nbiconfig['imageName'] = name + build_version
     nbiconfig['installType'] = 'netinstall'
-    nbiconfig['nbiLocation'] = nbilocation
-    
-    # Write out the now-complete dict as a standard plist to our previously 
+    nbiconfig['nbiLocation'] = nbilocation + build_version
+
+    # Write out the now-complete dict as a standard plist to our previously
     #  configured destination file
     FoundationPlist.writePlist(nbiconfig, plistfile)
-    
+
     # Return the path to the configuration plist to the caller
     return plistfile
     # return nbiconfig
 
 def locateInstaller(rootpath = '/Applications', auto = False):
     """docstring for locateInstaller"""
-    
+
     if not os.path.exists(rootpath):
-        print "The root path " + rootpath + " is not a valid path - unable \
-                to proceed."
+        print "The root path '" + rootpath + "' is not a valid path - unable "\
+                "to proceed."
         sys.exit(1)
-    elif auto and rootpath == '':
-        print 'Mode is auto but no rootpath was given, unable to proceed.'
-        sys.exit(1)
+    # elif auto and rootpath == '':
+    #     print 'Mode is auto but no rootpath was given, unable to proceed.'
+    #     sys.exit(1)
     elif auto and not rootpath.endswith('.app'):
-        print 'Mode is auto but the rootpath is not an installer app, unable \
-                to proceed.'
+        print 'Mode is auto but the rootpath is not an installer app, unable '\
+                'to proceed.'
         sys.exit(1)
     elif auto and rootpath.endswith('.app'):
         return rootpath
-    else:
+    elif not auto:
         # Initialize an empty list to store all found OS X installer apps
         installers = []
         for item in os.listdir(rootpath):
@@ -207,7 +207,7 @@ def locateInstaller(rootpath = '/Applications', auto = False):
 def pickInstaller(installers):
     """docstring for pickInstaller"""
     choice = ''
-    
+
     for item in enumerate(installers):
         print "[%d] %s" % item
 
@@ -223,13 +223,13 @@ def pickInstaller(installers):
         sys.exit(1)
 
     return choice
-    
+
 def createNBI(plist):
     """docstring for createNBI"""
     cmd = '/System/Library/CoreServices/System\ Image\ Utility.app/Contents/MacOS/imagetool'
     options = ' --plist ' + plist + ' > /dev/null 2>&1'
     fullcmd = cmd + options
-    print fullcmd
+    # print fullcmd
     subprocess.call(fullcmd, shell=True)
 
 def convertNBI(mode = 'rw'):
@@ -242,30 +242,54 @@ def modifyNBI(items = None):
 TMPDIR = None
 def main():
     """docstring for main"""
-    global TMPDIR
-
     if os.getuid() > 0:
         print 'This tool requires sudo or root access.'
         sys.exit(1)
-    
+
+    global TMPDIR
+
+    usage = '---- Add usage text ----'
+
+    parser = optparse.OptionParser(usage=usage)
+    parser.add_option('--source', '-s',
+        help='Required. Path to Install Mac OS X Lion.app '
+        'or Install OS X Mountain Lion.app or Install OS X Mavericks.app')
+    parser.add_option('--destination', '-d',
+        help='Required. Path to save .plist and .nbi files')
+    parser.add_option('--name', '-n',
+        help='Required. Name of the NBI, also applies to .plist')
+    parser.add_option('--auto', '-a', action='store_true', default=False,
+        help='Optional. Toggles automation mode, suitable for scripted runs')
+    options, arguments = parser.parse_args()
+
+    root = options.source
+    destination = options.destination
+    name = options.name
+    auto = options.auto
+
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
-    print TMPDIR
+
+    # userSrc = '/Applications'
+    # userDst = '/Users/bruienne/source/buildNBI/build'
+    # userName = 'TESTING'
     
-    userSrc = '/Applications'
-    userDst = '/Users/bruienne/source/buildNBI/build'
-    userName = 'TESTING'
+    if not destination.startswith('/'):
+        destination = os.path.abspath(destination)
     
-    source = locateInstaller(userSrc)
+    print 'Locating installer...'
+    source = locateInstaller(root, auto)
     
-    if len(source) > 1:
-        source = pickInstaller(source)
-        plistfile = buildPlist(source, userDst, userName)
+    print 'Generating plist...'
+    if type(source) == list:
+        choice = pickInstaller(source)
+        plistfile = buildPlist(choice, destination, name)
     else:
-        plistfile = buildPlist(source, userDst, userName)
-    
+        plistfile = buildPlist(source, destination, name)
+
     # print plistfile
     
-    # createNBI(plistfile)
+    print 'Creating NBI...'
+    createNBI(plistfile)
 
 if __name__ == '__main__':
     main()
