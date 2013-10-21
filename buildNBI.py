@@ -232,8 +232,16 @@ def createNBI(plist):
     # print fullcmd
     subprocess.call(fullcmd, shell=True)
 
-def convertNBI(mode = 'rw'):
-    pass
+def convertNBI(dmgpath, mode = 'rw'):
+    cmd = ['/usr/bin/hdiutil', 'attach', dmgpath,
+                '-mountRandom', TMPDIR, '-nobrowse', '-plist',
+                '-owners', 'on']
+    proc = subprocess.Popen(cmd, bufsize=-1,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (pliststr, err) = proc.communicate()
+    if proc.returncode:
+        print >> sys.stderr, 'Error: "%s" while mounting %s.' % (err, dmgname)
+    if pliststr:
 
 def modifyNBI(items = None):
     """docstring for modifyNBI"""
