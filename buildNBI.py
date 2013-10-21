@@ -55,7 +55,8 @@ def mountdmg(dmgpath, use_shadow=False):
                 '-owners', 'on']
     if use_shadow:
         shadowname = dmgname + '.shadow'
-        shadowpath = os.path.join(TMPDIR, shadowname)
+        shadowroot = os.path.dirname(dmgpath)
+        shadowpath = os.path.join(shadowroot, shadowname)
         cmd.extend(['-shadow', shadowpath])
     else:
         shadowpath = None
@@ -88,6 +89,34 @@ def unmountdmg(mountpoint):
                                 '-force'])
         if retcode:
             print >> sys.stderr, 'Failed to unmount %s' % mountpoint
+
+def convertdmg(dmgpath, nbishadow):
+    """
+    Unmounts the dmg at mountpoint
+    """
+    dmgfinal = os.path.join(os.path.dirname(dmgpath), 'NetInstallMod')
+    cmd = ['/usr/bin/hdiutil', 'convert', dmgpath,'-format', 'UDSP',
+        '-shadow', nbishadow,'-o', dmgfinal]
+    proc = subprocess.Popen(cmd, bufsize=-1,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (unused, err) = proc.communicate()
+    if proc.returncode:
+        print >> sys.stderr, 'Disk image conversion failed: %s' % err
+    return dmgfinal + '.sparseimage'
+
+def resizedmg(dmgpath):
+    """
+    Unmounts the dmg at mountpoint
+    """
+    print dmgpath
+    cmd = ['/usr/bin/hdiutil', 'compact', dmgpath]
+    # cmd = ['/usr/bin/hdiutil', 'resize', '750g', '-imageonly', dmgpath]
+    print cmd
+    proc = subprocess.Popen(cmd, bufsize=-1,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (unused_output, err) = proc.communicate()
+    if proc.returncode:
+        print >> sys.stderr, 'Disk image resizing failed: %s' % err
 
 def getOSversionInfo(mountpoint):
     # get info from BaseSystem.dmg
@@ -169,7 +198,7 @@ def buildPlist(source = '', dest = __file__, name = ''):
     FoundationPlist.writePlist(nbiconfig, plistfile)
 
     # Return the path to the configuration plist to the caller
-    return plistfile
+    return plistfile, str(nbiconfig['nbiLocation'])
     # return nbiconfig
 
 def locateInstaller(rootpath = '/Applications', auto = False):
@@ -226,26 +255,53 @@ def pickInstaller(installers):
 
 def createNBI(plist):
     """docstring for createNBI"""
-    cmd = '/System/Library/CoreServices/System\ Image\ Utility.app/Contents/MacOS/imagetool'
-    options = ' --plist ' + plist + ' > /dev/null 2>&1'
-    fullcmd = cmd + options
-    # print fullcmd
-    subprocess.call(fullcmd, shell=True)
-
-def convertNBI(dmgpath, mode = 'rw'):
-    cmd = ['/usr/bin/hdiutil', 'attach', dmgpath,
-                '-mountRandom', TMPDIR, '-nobrowse', '-plist',
-                '-owners', 'on']
-    proc = subprocess.Popen(cmd, bufsize=-1,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    (pliststr, err) = proc.communicate()
+    cmd = ['/System/Library/CoreServices/System Image Utility.app/Contents/MacOS/imagetool', '--plist', plist]
+    proc = subprocess.Popen(cmd, bufsize=-1, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
+    (unused, err) = proc.communicate()
     if proc.returncode:
-        print >> sys.stderr, 'Error: "%s" while mounting %s.' % (err, dmgname)
-    if pliststr:
+        print >> sys.stderr, 'Error: "%s" while processing %s.' % (err, plist)
+        sys.exit(1)
 
-def modifyNBI(items = None):
-    """docstring for modifyNBI"""
-    pass
+class processNBI(object):
+    """docstring for processNBI"""
+    # def __init__(self, arg):
+    #     super(processNBI, self).__init__()
+    #     self.arg = arg
+    # 
+    def makerw(self, netinstallpath):
+        nbimount, nbishadow = mountdmg(netinstallpath, use_shadow=True)
+        return nbimount[0], nbishadow
+
+    def modify(self, nbimount, items = None):
+        """docstring for modifyNBI"""
+        
+        # DO STUFF
+        print "Doing stuff with shadowed DMG at path %s" % nbimount
+        
+        processdir = os.path.join(nbimount, 'Packages')
+        
+        for root, dirs, files in os.walk(processdir, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+        # os.rmdir(os.path.join(nbimount, 'Packages'))
+
+        open(os.path.join(processdir, 'testing'), 'a').close()
+        unmountdmg(nbimount)
+
+    def close(self, dmgpath, nbishadow):
+        print "Closing DMG at path %s using shadow file %s" % (dmgpath,
+            nbishadow)
+        dmgfinal = convertdmg(dmgpath, nbishadow)
+        os.remove(nbishadow)
+        
+        # print "Resizing DMG at path %s" % (dmgfinal)
+        # resizedmg(dmgfinal)
+        # remove(dmgpath)
+        # rename(dmgfinal, dmgpath)
+
 
 TMPDIR = None
 def main():
@@ -277,27 +333,32 @@ def main():
 
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
 
-    # userSrc = '/Applications'
-    # userDst = '/Users/bruienne/source/buildNBI/build'
-    # userName = 'TESTING'
-    
     if not destination.startswith('/'):
         destination = os.path.abspath(destination)
-    
+
     print 'Locating installer...'
     source = locateInstaller(root, auto)
-    
+
     print 'Generating plist...'
     if type(source) == list:
         choice = pickInstaller(source)
-        plistfile = buildPlist(choice, destination, name)
+        plistfile, nbiLocation = buildPlist(choice, destination, name)
     else:
-        plistfile = buildPlist(source, destination, name)
+        plistfile, nbiLocation = buildPlist(source, destination, name)
 
-    # print plistfile
+    print 'Creating NBI... (this may take a while)'
+    netinstallpath = os.path.join(nbiLocation + '.nbi', 'NetInstall.dmg')
+
+    # createNBI(plistfile)
     
-    print 'Creating NBI...'
-    createNBI(plistfile)
+    nbi = processNBI()
+    nbimount, nbishadow = nbi.makerw(netinstallpath)
 
+    # print nbimount, nbishadow
+
+    nbi.modify(nbimount)
+    nbi.close(netinstallpath, nbishadow)
+    
+    
 if __name__ == '__main__':
     main()
