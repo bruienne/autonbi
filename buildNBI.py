@@ -3,8 +3,10 @@
 # buildNBI.py - A tool to automate (or not) the building and modifying
 #  of Apple NetBoot NBI bundles
 #
-# Requirements: OS X 10.9 Mavericks - This tool relies on the 'imagetool'
-#  which AFAIK didn't ship prior to OS X 10.9
+# Requirements:
+#   - OS X 10.9 Mavericks - This tool relies on the 'imagetool'
+#       which AFAIK didn't ship prior to OS X 10.9.
+#   - Munki tools installed at /usr/local/munki - needed for FoundationPlist.
 #
 # This tool allows the user to bypass System Image Utility for creating a valid
 #  plist for use with the 'imagetool --plist' invocation. After a valid plist
@@ -396,17 +398,24 @@ class processNBI(object):
 TMPDIR = None
 def main():
     """docstring for main"""
-    if os.getuid() > 0:
-        print 'This tool requires sudo or root access.'
-        sys.exit(1)
 
     global TMPDIR
 
     # TBD - Full usage text
-    usage = '---- Add usage text ----'
+    usage = ('Usage: %prog --source <path>\n'
+        '                   --destination <path>\n'
+        '                   --name MyNBI\n'
+        '                   [--auto]\n'
+        '    %prog creates a Lion, Mountain Lion or Mavericks NetBoot NBI\n'
+        '    ready for use with a NetBoot server.\n\n'
+        '    An option to modify the NBI\'s NetInstall.dmg is also provided.\n'
+        '\n'
+        '    Example:\n'
+        '    ./buildNBI.py -s /Applications -d ~/Documents -n MyNBI\n'
+        '    ./buildNBI.py -s /Volumes/Disk/Install OS X Mavericks.app -d ~/Documents -n MyNBI -a')
 
     # Setup a parser instance
-    parser = optparse.OptionParser(usage=usage)
+    parser = optparse.OptionParser(usage = usage)
     
     # Setup the recognized options
     parser.add_option('--source', '-s',
@@ -418,9 +427,14 @@ def main():
         help='Required. Name of the NBI, also applies to .plist')
     parser.add_option('--auto', '-a', action='store_true', default=False,
         help='Optional. Toggles automation mode, suitable for scripted runs')
-    
+
     # Parse the provided options
     options, arguments = parser.parse_args()
+
+    if os.getuid() != 0:
+        parser.print_usage()
+        print >> sys.stderr, 'This tool requires sudo or root access.'
+        exit(-1)
 
     # Setup our base requirements for installer app root path, destination,
     #   name of the NBI and auto mode.
