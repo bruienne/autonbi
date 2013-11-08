@@ -1,11 +1,13 @@
- AutoNBI.py - A tool to automate (or not) the building and modifying
- --------------------------------------------------------------------
-  of Apple NetBoot NBI bundles.
-  -------------------------------
- Requirements:
-   * OS X 10.9 Mavericks - This tool relies on parts of the SIUFoundation
+__AutoNBI.py__
+==============
+A tool to automate (or not) the building and customization of Apple NetBoot NBI bundles.
+----------------------------------------------------------------------------------------
+
+ Requirements:  
+ 
+   * __OS X 10.9 Mavericks__ - This tool relies on parts of the *SIUFoundation*
      Framework which is part of System Image Utility, found in
-     /System/Library/CoreServices in Mavericks.
+     _/System/Library/CoreServices_ in Mavericks.
 
    * Munki tools installed at /usr/local/munki - needed for FoundationPlist.
 
