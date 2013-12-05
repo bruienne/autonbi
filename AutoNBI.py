@@ -212,6 +212,10 @@ def buildplist(nbiindex, nbidescription, nbiname, destdir=__file__):
     """buildplist takes a source, destination and name parameter that are used
         to create a valid plist for imagetool ingestion."""
 
+    nbipath = os.path.join(destdir, nbiname + '.nbi')
+    platformsupport = FoundationPlist.readPlist(os.path.join(nbipath, 'i386', 'PlatformSupport.plist'))
+    enabledsystems = platformsupport.get('SupportedModelProperties')
+
     nbimageinfo = {'IsInstall': True,
                    'Index': nbiindex,
                    'Kind': 1,
@@ -220,7 +224,7 @@ def buildplist(nbiindex, nbidescription, nbiname, destdir=__file__):
                    'IsEnabled': False,
                    'SupportsDiskless': False,
                    'RootPath': 'NetInstall.dmg',
-                   'EnabledSystemIdentifiers': [],
+                   'EnabledSystemIdentifiers': enabledsystems,
                    'BootFile': 'booter',
                    'Architectures': ['i386'],
                    'BackwardCompatible': False,
@@ -230,7 +234,7 @@ def buildplist(nbiindex, nbidescription, nbiname, destdir=__file__):
                    'Name': nbiname,
                    'osVersion': '10.9'}
 
-    plistfile = os.path.join(destdir, nbiname + '.nbi', 'NBImageInfo.plist')
+    plistfile = os.path.join(nbipath, 'NBImageInfo.plist')
     FoundationPlist.writePlist(nbimageinfo, plistfile)
 
 
