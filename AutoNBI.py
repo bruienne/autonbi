@@ -382,9 +382,8 @@ class processNBI(object):
         created by createnbi()"""
 
     # Don't think we need this.
-    def __init__(self, arg):
+    def __init__(self):
          super(processNBI, self).__init__()
-         self.arg = arg
 
     # Make the provided NetInstall.dmg r/w by mounting it with a shadow file
     def makerw(self, netinstallpath):
@@ -396,39 +395,42 @@ class processNBI(object):
 
     # Allows modifications to be made to a DMG previously made writable by
     #   processNBI.makerw()
-    def modify(self, nbimount, modfolder, sourcefolder):
+    def modify(self, nbimount, modfolder, dmgpath, nbishadow, sourcefolder):
         # DO STUFF
-        print "Modifying NetBoot volume at %s" % nbimount
+        if sourcefolder is not None:
+            print "Modifying NetBoot volume at %s" % nbimount
 
-        # Sets up which directory to process. This is a simple version until
-        # we implement something more full-fledged, based on a config file
-        # or other user-specified source of modifications.
-        processdir = os.path.join(nbimount, modfolder)
+            # Sets up which directory to process. This is a simple version until
+            # we implement something more full-fledged, based on a config file
+            # or other user-specified source of modifications.
+            processdir = os.path.join(nbimount, modfolder)
 
-        # Remove folder being modified - distutils appears to have the easiest
-        # method to recursively delete a folder. Same with recursively copying
-        # back its replacement.
-        if os.path.exists(processdir):
-            distutils.dir_util.remove_tree(processdir)
-            os.mkdir(processdir)
-        distutils.dir_util.copy_tree(sourcefolder, processdir)
+            # Remove folder being modified - distutils appears to have the easiest
+            # method to recursively delete a folder. Same with recursively copying
+            # back its replacement.
+            if os.path.exists(processdir):
+                distutils.dir_util.remove_tree(processdir)
+                os.mkdir(processdir)
+            distutils.dir_util.copy_tree(sourcefolder, processdir)
 
-        # We're done, unmount the DMG.
-        unmountdmg(nbimount)
+            # We're done, unmount the DMG.
+            unmountdmg(nbimount)
 
-    # Convert modified DMG to .sparseimage, this will shrink the image
-    # automatically after modification.
-    def close(self, dmgpath, nbishadow):
-        print "Sealing DMG at path %s using shadow file %s" % (dmgpath,
-                                                               nbishadow)
-        dmgfinal = convertdmg(dmgpath, nbishadow)
+            # Convert modified DMG to .sparseimage, this will shrink the image
+            # automatically after modification.
+            print "Sealing DMG at path %s using shadow file %s" % (dmgpath,
+                                                                   nbishadow)
+            dmgfinal = convertdmg(dmgpath, nbishadow)
 
-        # Do some cleanup, remove original DMG, its shadow file and rename
-        # .sparseimage to NetInstall.dmg
-        os.remove(nbishadow)
-        os.remove(dmgpath)
-        os.rename(dmgfinal, dmgpath)
-
+            # Do some cleanup, remove original DMG, its shadow file and rename
+            # .sparseimage to NetInstall.dmg
+            os.remove(nbishadow)
+            os.remove(dmgpath)
+            os.rename(dmgfinal, dmgpath)
+        else:
+            # We're done, unmount the DMG.
+            unmountdmg(nbimount)
+            os.remove(nbishadow)
 
 TMPDIR = None
 BUILDEXECPATH = ('/System/Library/CoreServices/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
@@ -549,24 +551,23 @@ def main():
     # We're done, unmount all the things
     unmountdmg(mount)
 
-    # Path to the NetInstall.dmg
-    netinstallpath = os.path.join(destination, name + '.nbi', 'NetInstall.dmg')
-
-    # Initialize a new processNBI() instance as 'nbi'
-    nbi = processNBI()
-
-    # Run makerw() to enable modifications
-    nbimount, nbishadow = nbi.makerw(netinstallpath)
-
     # Make our modifications if any were provided from the CLI
     if len(modfolder) > 0:
-        nbi.modify(nbimount, modfolder, sourcefolder=os.path.join(destination, modfolder))
+        # Path to the NetInstall.dmg
+        netinstallpath = os.path.join(destination, name + '.nbi', 'NetInstall.dmg')
+
+        # Initialize a new processNBI() instance as 'nbi'
+        nbi = processNBI()
+
+        # Run makerw() to enable modifications
+        nbimount, nbishadow = nbi.makerw(netinstallpath)
+        
+        nbi.modify(nbimount, modfolder, netinstallpath, nbishadow, sourcefolder=os.path.join(destination, modfolder))
+        print 'Modifications complete...'
+        print 'Done.'
     else:
-        print 'No modifications will be made.'
-
-    # Close up the modified image and we're done. Huzzah!
-    nbi.close(netinstallpath, nbishadow)
-
+        print 'No modifications will be made...'
+        print 'Done.'
 
 if __name__ == '__main__':
     main()
