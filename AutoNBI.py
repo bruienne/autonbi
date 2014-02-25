@@ -141,6 +141,7 @@ def unmountdmg(mountpoint):
         # try forcing the unmount
         retcode = subprocess.call(['/usr/bin/hdiutil', 'detach', mountpoint,
                                    '-force'])
+        print('Unmounting successful...')
         if retcode:
             print >> sys.stderr, 'Failed to unmount %s' % mountpoint
 
@@ -395,7 +396,7 @@ class processNBI(object):
 
     # Allows modifications to be made to a DMG previously made writable by
     #   processNBI.makerw()
-    def modify(self, nbimount, modfolder, dmgpath, nbishadow, sourcefolder):
+    def modify(self, nbimount, dmgpath, nbishadow, sourcefolder):
         # DO STUFF
         if sourcefolder is not None:
             print "Modifying NetBoot volume at %s" % nbimount
@@ -403,15 +404,17 @@ class processNBI(object):
             # Sets up which directory to process. This is a simple version until
             # we implement something more full-fledged, based on a config file
             # or other user-specified source of modifications.
-            processdir = os.path.join(nbimount, modfolder)
+            processdir = os.path.join(nbimount, ''.join(sourcefolder.split('/')[-1:]))
 
             # Remove folder being modified - distutils appears to have the easiest
             # method to recursively delete a folder. Same with recursively copying
             # back its replacement.
+            print('About to process ' + processdir + ' for replacement...')
             if os.path.exists(processdir):
                 distutils.dir_util.remove_tree(processdir)
                 os.mkdir(processdir)
-            distutils.dir_util.copy_tree(sourcefolder, processdir)
+                print('Copying ' + sourcefolder + ' to ' + processdir + '...')
+                distutils.dir_util.copy_tree(sourcefolder, processdir)
 
             # We're done, unmount the DMG.
             unmountdmg(nbimount)
@@ -421,7 +424,8 @@ class processNBI(object):
             print "Sealing DMG at path %s using shadow file %s" % (dmgpath,
                                                                    nbishadow)
             dmgfinal = convertdmg(dmgpath, nbishadow)
-
+            # print('Got back final DMG as ' + dmgfinal + ' from convertdmg()...')
+            
             # Do some cleanup, remove original DMG, its shadow file and rename
             # .sparseimage to NetInstall.dmg
             os.remove(nbishadow)
@@ -429,6 +433,7 @@ class processNBI(object):
             os.rename(dmgfinal, dmgpath)
         else:
             # We're done, unmount the DMG.
+            print('sourcefolder was None, skipping modification...')
             unmountdmg(nbimount)
             os.remove(nbishadow)
 
@@ -553,6 +558,15 @@ def main():
 
     # Make our modifications if any were provided from the CLI
     if len(modfolder) > 0:
+
+        try:
+            if os.path.isdir(modfolder):
+                sourcefolder = os.path.abspath(modfolder)
+        except IOError:
+            print sourcefolder + " is not a valid path - unable to proceed."
+            sys.exit(1)
+            
+
         # Path to the NetInstall.dmg
         netinstallpath = os.path.join(destination, name + '.nbi', 'NetInstall.dmg')
 
@@ -562,7 +576,7 @@ def main():
         # Run makerw() to enable modifications
         nbimount, nbishadow = nbi.makerw(netinstallpath)
         
-        nbi.modify(nbimount, modfolder, netinstallpath, nbishadow, sourcefolder=os.path.join(destination, modfolder))
+        nbi.modify(nbimount, netinstallpath, nbishadow, sourcefolder)
         print 'Modifications complete...'
         print 'Done.'
     else:
