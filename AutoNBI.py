@@ -71,10 +71,17 @@ import subprocess
 import plistlib
 import optparse
 import shutil
+from distutils.version import LooseVersion
 
 sys.path.append("/usr/local/munki/munkilib")
 import FoundationPlist
 from xml.parsers.expat import ExpatError
+
+def _get_mac_ver():
+    import subprocess
+    p = subprocess.Popen(['sw_vers', '-productVersion'], stdout=subprocess.PIPE)
+    stdout, stderr = p.communicate()
+    return stdout.strip()
 
 #  Below code from COSXIP by Greg Neagle
 
@@ -209,7 +216,7 @@ def getosversioninfo(mountpoint):
            version_info.get('ProductBuildVersion'), mountpoint
 
 
-def buildplist(nbiindex, nbidescription, nbiname, destdir=__file__):
+def buildplist(nbiindex, nbidescription, nbiname, nbienabled, destdir=__file__):
     """buildplist takes a source, destination and name parameter that are used
         to create a valid plist for imagetool ingestion."""
 
@@ -222,7 +229,7 @@ def buildplist(nbiindex, nbidescription, nbiname, destdir=__file__):
                    'Kind': 1,
                    'Description': nbidescription,
                    'Language': 'Default',
-                   'IsEnabled': False,
+                   'IsEnabled': nbienabled,
                    'SupportsDiskless': False,
                    'RootPath': 'NetInstall.dmg',
                    'EnabledSystemIdentifiers': enabledsystems,
@@ -331,7 +338,7 @@ def pickinstaller(installers):
     return choice
 
 
-def createnbi(workdir, description, name, dmgmount):
+def createnbi(workdir, description, name, enabled, dmgmount):
     """createnbi calls the 'createNetInstall.sh' script with the
         environment variables from the createvariables dict."""
 
@@ -358,7 +365,7 @@ def createnbi(workdir, description, name, dmgmount):
         print >> sys.stderr, 'Error: "%s" while processing %s.' % (err, unused)
         sys.exit(1)
 
-    buildplist(5000, description, name, workdir)
+    buildplist(5000, description, name, enabled, workdir)
 
     os.unlink(os.path.join(workdir, 'createCommon.sh'))
     os.unlink(os.path.join(workdir, 'createVariables.sh'))
@@ -438,7 +445,13 @@ class processNBI(object):
             os.remove(nbishadow)
 
 TMPDIR = None
-BUILDEXECPATH = ('/System/Library/CoreServices/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
+
+
+if LooseVersion(_get_mac_ver()) > "10.9":
+    BUILDEXECPATH = ('/System/Library/CoreServices/Applications/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
+                 'Versions/A/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
+else:
+    BUILDEXECPATH = ('/System/Library/CoreServices/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
                  'Versions/A/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
 
 
@@ -481,6 +494,8 @@ def main():
                                          root below which changes will be made')
     parser.add_option('--auto', '-a', action='store_true', default=False,
                       help='Optional. Toggles automation mode, suitable for scripted runs')
+    parser.add_option('--enabled', '-e', action='store_true', default=False,
+                      help='Optional. Enables NBI.')
 
     # Parse the provided options
     options, arguments = parser.parse_args()
@@ -497,6 +512,7 @@ def main():
     destination = options.destination
     name = options.name
     auto = options.auto
+    enabled = options.enabled
     modfolder = options.folder
 
     # Spin up a tmp dir for mounting
@@ -551,14 +567,13 @@ def main():
 
     # Now move on to the actual NBI creation
     print 'Creating NBI at ' + destination
-    createnbi(destination, description, name, mount)
+    createnbi(destination, description, name, enabled, mount)
 
     # We're done, unmount all the things
     unmountdmg(mount)
 
     # Make our modifications if any were provided from the CLI
     if len(modfolder) > 0:
-
         try:
             if os.path.isdir(modfolder):
                 sourcefolder = os.path.abspath(modfolder)
@@ -566,7 +581,6 @@ def main():
             print sourcefolder + " is not a valid path - unable to proceed."
             sys.exit(1)
             
-
         # Path to the NetInstall.dmg
         netinstallpath = os.path.join(destination, name + '.nbi', 'NetInstall.dmg')
 
