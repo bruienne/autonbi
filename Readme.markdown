@@ -10,7 +10,7 @@ __Requirements__:
     Framework which is part of System Image Utility, found in
     _/System/Library/CoreServices_ in Mavericks.
 
-  * __Munki tools__ installed at _/usr/local/munki_ - needed for FoundationPlist.
+  * __Munki tools__ installed at `/usr/local/munki` - needed for FoundationPlist.
 
 __Thanks to:__
 --------------
@@ -38,7 +38,7 @@ __Command line options:__
   files are written. If the optional --folder arguments is given an
   identically named folder must be placed in the build root:
 
-  `./AutoNBI <arguments> -d /Users/admin/BuildRoot --folder Packages`
+  `./AutoNBI <arguments>P -d /Users/admin/BuildRoot --folder Packages`
   -> Causes AutoNBI to look for `/Users/admin/BuildRoot/Packages`
 
 * `[--name][-n]` The name of the NBI bundle, without .nbi extension
@@ -69,13 +69,17 @@ __Command line options:__
 __Examples:__
 -------------
 To invoke AutoNBI in interactive mode:
+
   `sudo ./AutoNBI -s /Applications -d /Users/admin/BuildRoot -n Mavericks`
 
 To invoke AutoNBI in automatic mode:
+
   `sudo ./AutoNBI -s ~/InstallESD.dmg -d /Users/admin/BuildRoot -n Mavericks -a`
 
 To replace "Packages" on the NBI boot volume with a custom version:
+
   `sudo ./AutoNBI -s ~/InstallESD.dmg -d ~/BuildRoot -n Yosemite -f Packages -a`
 
 To invoke AutoNBI in automatic mode and add the Python framework:
+
   `sudo ./AutoNBI -s ~/InstallESD.dmg -d /Users/admin/BuildRoot -n Yosemite-10.10.2 -a --enable-python`
