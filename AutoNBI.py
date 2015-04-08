@@ -34,7 +34,7 @@
 #   identically named folder must be placed in the build root:
 #
 #   ./AutoNBI <arguments> -d /Users/admin/BuildRoot --folder Packages
-#   |
+#
 #   +-> Causes AutoNBI to look for /Users/admin/BuildRoot/Packages
 #
 # * [--name][-n] The name of the NBI bundle, without .nbi extension
@@ -52,6 +52,15 @@
 #   source the application will stop. If more than one possible installer
 #   source is found in interactive mode the user will be presented with
 #   a list of possible InstallerESD.dmg choices and asked to pick one.
+#
+# * [--enable-nbi][-e] Enable the output NBI by default. This sets the "Enabled"
+#   key in NBImageInfo.plist to "true".
+#
+# * [--enable-python][-p] Add the Python framework and libraries to the NBI
+#   in order to support Python-based applications at runtime
+#
+# * [--enable-ruby][-r] Add the Ruby framework and libraries to the NBI
+#   in order to support Ruby-based applications at runtime
 #
 # To invoke AutoNBI in interactive mode:
 #   ./AutoNBI -s /Applications -d /Users/admin/BuildRoot -n Mavericks
@@ -390,8 +399,13 @@ class processNBI(object):
         created by createnbi()"""
 
     # Don't think we need this.
-    def __init__(self):
+    def __init__(self, customfolder = None, enablepython=False, enableruby=False):
          super(processNBI, self).__init__()
+         self.customfolder = customfolder
+         self.enablepython = enablepython
+         self.enableruby = enableruby
+         self.hdiutil = '/usr/bin/hdiutil'
+
 
     # Make the provided NetInstall.dmg r/w by mounting it with a shadow file
     def makerw(self, netinstallpath):
@@ -401,17 +415,110 @@ class processNBI(object):
         # Send the mountpoint and shadow file back to the caller
         return nbimount[0], nbishadow
 
+    # Handle the addition of system frameworks like Python and Ruby using the
+    #   OS X installer source
+    # def enableframeworks(self, source, shadow):
+
+    def dmgattach(self, attach_source, shadow_file):
+        return [ self.hdiutil, 'attach',
+                               '-shadow', shadow_file,
+                               '-mountRandom', TMPDIR,
+                               '-nobrowse',
+                               '-plist',
+                               '-owners', 'on',
+                               attach_source ]
+    def dmgdetach(self, detach_mountpoint):
+        return [ self.hdiutil, 'detach',
+                          detach_mountpoint ]
+    def dmgconvert(self, convert_source, convert_target, shadow_file):
+        return [ self.hdiutil, 'convert',
+                          '-format', 'UDRO',
+                          '-o', convert_target,
+                          '-shadow', shadow_file,
+                          convert_source ]
+    def dmgresize(self, resize_source, shadow_file):
+        return [ self.hdiutil, 'resize',
+                          '-size', '10G',
+                          '-shadow', shadow_file,
+                          resize_source ]
+    def xarextract(self, xar_source):
+        return [ '/usr/bin/xar', '-x',
+                                 '-f', xar_source,
+                                 'Payload',
+                                 '-C', TMPDIR ]
+    def cpioextract(self, cpio_source):
+        return [ '/usr/bin/cpio -idmu --quiet -I %s \"*Py*\" \"*py*\"' % cpio_source ]
+    def getfiletype(self, filepath):
+        return ['/usr/bin/file', filepath]
+
+    def runcmd(self, cmd, cwd=None):
+
+        print cmd
+
+        if type(cwd) is not str:
+            proc = subprocess.Popen(cmd, bufsize=-1,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            (result, err) = proc.communicate()
+        else:
+            proc = subprocess.Popen(cmd, bufsize=-1,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd,
+                            shell=True)
+            (result, err) = proc.communicate()
+
+        if proc.returncode:
+            print >> sys.stderr, 'Error "%s" while running command %s' % (err, cmd)
+
+        return result
+
+    # Code for parse_pbzx from https://gist.github.com/pudquick/ac29c8c19432f2d200d4
+    def parse_pbzx(self, pbzx_path, xar_out_path):
+        import struct
+        f = open(pbzx_path, 'rb')
+        pbzx = f.read()
+        f.close()
+        magic, pbzx = pbzx[:4],pbzx[4:]
+        if magic != 'pbzx':
+            raise "Error: Not a pbzx file"
+        # Read 8 bytes for initial flags
+        flags, pbzx = pbzx[:8],pbzx[8:]
+        # Interpret the flags as a 64-bit big-endian unsigned int
+        flags = struct.unpack('>Q', flags)[0]
+        xar_f = open(xar_out_path, 'wb')
+        while (flags & (1 << 24)):
+            # Read in more flags
+            flags, pbzx = pbzx[:8],pbzx[8:]
+            flags = struct.unpack('>Q', flags)[0]
+            # Read in length
+            f_length, pbzx = pbzx[:8],pbzx[8:]
+            f_length = struct.unpack('>Q', f_length)[0]
+            xzmagic, pbzx = pbzx[:6],pbzx[6:]
+            if xzmagic != '\xfd7zXZ\x00':
+                xar_f.close()
+                raise "Error: Header is not xar file header"
+            f_length -= 6
+            f_content, pbzx = pbzx[:f_length],pbzx[f_length:]
+            if f_content[-2:] != 'YZ':
+                xar_f.close()
+                raise "Error: Footer is not xar file footer"
+            xar_f.write(xzmagic)
+            xar_f.write(f_content)
+        try:
+            xar_f.close()
+        except:
+            pass
+
+
     # Allows modifications to be made to a DMG previously made writable by
     #   processNBI.makerw()
-    def modify(self, nbimount, dmgpath, nbishadow, sourcefolder):
+    def modify(self, nbimount, dmgpath, nbishadow, installersource):
         # DO STUFF
-        if sourcefolder is not None:
+        if self.customfolder is not None:
             print "Modifying NetBoot volume at %s" % nbimount
 
             # Sets up which directory to process. This is a simple version until
             # we implement something more full-fledged, based on a config file
             # or other user-specified source of modifications.
-            processdir = os.path.join(nbimount, ''.join(sourcefolder.split('/')[-1:]))
+            processdir = os.path.join(nbimount, ''.join(self.customfolder.split('/')[-1:]))
 
             # Remove folder being modified - distutils appears to have the easiest
             # method to recursively delete a folder. Same with recursively copying
@@ -420,38 +527,70 @@ class processNBI(object):
             if os.path.exists(processdir):
                 distutils.dir_util.remove_tree(processdir)
                 os.mkdir(processdir)
-                print('Copying ' + sourcefolder + ' to ' + processdir + '...')
-                distutils.dir_util.copy_tree(sourcefolder, processdir)
+                print('Copying ' + self.customfolder + ' to ' + processdir + '...')
+                distutils.dir_util.copy_tree(self.customfolder, processdir)
+        if self.enablepython:
 
-            # We're done, unmount the DMG.
-            unmountdmg(nbimount)
+            print("Adding Python framework from %s to NBI at %s" % (installersource, nbimount))
 
-            # Convert modified DMG to .sparseimage, this will shrink the image
-            # automatically after modification.
-            print "Sealing DMG at path %s using shadow file %s" % (dmgpath,
-                                                                   nbishadow)
-            dmgfinal = convertdmg(dmgpath, nbishadow)
-            # print('Got back final DMG as ' + dmgfinal + ' from convertdmg()...')
-            
-            # Do some cleanup, remove original DMG, its shadow file and rename
-            # .sparseimage to NetInstall.dmg
-            os.remove(nbishadow)
-            os.remove(dmgpath)
-            os.rename(dmgfinal, dmgpath)
-        else:
-            # We're done, unmount the DMG.
-            print('sourcefolder was None, skipping modification...')
-            unmountdmg(nbimount)
-            os.remove(nbishadow)
+            # Extract Payload from desired OS X installer package
+            xar_source = os.path.join(installersource, 'Packages', 'BSD.pkg')
+            result = self.runcmd(self.xarextract(xar_source))
+
+            payloadsource = os.path.join(TMPDIR, 'Payload')
+            payloadtype = self.runcmd(self.getfiletype(payloadsource)).split(': ')[1]
+
+            cpio_source = os.path.join(TMPDIR, 'Payload.cpio.xz')
+
+            # Check filetype of the Payload, 10.10 adds a pbzx wrapper
+            if payloadtype.startswith('data'):
+                # This is most likely pbzx-wrapped, unwrap it
+                self.parse_pbzx(payloadsource, cpio_source)
+                os.remove(payloadsource)
+            else:
+                # No pbzx wrapper, rename and move to cpio extraction
+                os.rename(payloadsource, cpio_source)
+
+            # Extract all or some (using shell globbing pattern) files from CPIO archive
+            self.runcmd(self.cpioextract(cpio_source), cwd=nbimount)
+            os.remove(cpio_source)
+
+        if self.enableruby:
+            #do stuff
+            print('Ruby not ready yet')
+            pass
+
+        # We're done, unmount the DMG.
+        unmountdmg(nbimount)
+
+        # Convert modified DMG to .sparseimage, this will shrink the image
+        # automatically after modification.
+        print "Sealing DMG at path %s using shadow file %s" % (dmgpath,
+                                                               nbishadow)
+        dmgfinal = convertdmg(dmgpath, nbishadow)
+        # print('Got back final DMG as ' + dmgfinal + ' from convertdmg()...')
+
+        # Do some cleanup, remove original DMG, its shadow file and rename
+        # .sparseimage to NetInstall.dmg
+        os.remove(nbishadow)
+        os.remove(dmgpath)
+        os.rename(dmgfinal, dmgpath)
+
+        # else:
+        #     # We're done, unmount the DMG.
+        #     print('customfolder was None, skipping modification...')
+        #     unmountdmg(nbimount)
+        #     os.remove(nbishadow)
 
 TMPDIR = None
 
+print _get_mac_ver()
 
-if LooseVersion(_get_mac_ver()) > "10.9":
-    BUILDEXECPATH = ('/System/Library/CoreServices/Applications/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
+if LooseVersion(_get_mac_ver()) < "10.10":
+    BUILDEXECPATH = ('/System/Library/CoreServices/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
                  'Versions/A/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
 else:
-    BUILDEXECPATH = ('/System/Library/CoreServices/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
+    BUILDEXECPATH = ('/System/Library/CoreServices/Applications/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
                  'Versions/A/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
 
 
@@ -491,11 +630,15 @@ def main():
                       help='Required. Name of the NBI, also applies to .plist')
     parser.add_option('--folder', '-f', default='',
                       help='Optional. Name of a folder on the NBI to modify. This will be the\
-                                         root below which changes will be made')
+                            root below which changes will be made')
     parser.add_option('--auto', '-a', action='store_true', default=False,
                       help='Optional. Toggles automation mode, suitable for scripted runs')
-    parser.add_option('--enabled', '-e', action='store_true', default=False,
-                      help='Optional. Enables NBI.')
+    parser.add_option('--enable-nbi', '-e', action='store_true', default=False,
+                      help='Optional. Enables NBI.', dest='enablenbi')
+    parser.add_option('--add-ruby', '-r', action='store_true', default=False,
+                      help='Optional. Enables Ruby in BaseSystem.', dest='addruby')
+    parser.add_option('--add-python', '-p', action='store_true', default=False,
+                      help='Optional. Enables Python in BaseSystem.', dest='addpython')
 
     # Parse the provided options
     options, arguments = parser.parse_args()
@@ -512,8 +655,14 @@ def main():
     destination = options.destination
     name = options.name
     auto = options.auto
-    enabled = options.enabled
-    modfolder = options.folder
+    enablenbi = options.enablenbi
+    customfolder = options.folder
+    addpython = options.addpython
+    addruby = options.addruby
+
+    # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are set
+    addcustom = len(customfolder) > 0
+    modifynbi = (addcustom or addpython or addruby)
 
     # Spin up a tmp dir for mounting
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
@@ -567,33 +716,40 @@ def main():
 
     # Now move on to the actual NBI creation
     print 'Creating NBI at ' + destination
-    createnbi(destination, description, name, enabled, mount)
-
-    # We're done, unmount all the things
-    unmountdmg(mount)
+    createnbi(destination, description, name, enablenbi, mount)
 
     # Make our modifications if any were provided from the CLI
-    if len(modfolder) > 0:
-        try:
-            if os.path.isdir(modfolder):
-                sourcefolder = os.path.abspath(modfolder)
-        except IOError:
-            print sourcefolder + " is not a valid path - unable to proceed."
-            sys.exit(1)
-            
+    if modifynbi:
+        if addcustom:
+            try:
+                if os.path.isdir(customfolder):
+                    customfolder = os.path.abspath(customfolder)
+            except IOError:
+                print customfolder + " is not a valid path - unable to proceed."
+                sys.exit(1)
+
         # Path to the NetInstall.dmg
         netinstallpath = os.path.join(destination, name + '.nbi', 'NetInstall.dmg')
 
         # Initialize a new processNBI() instance as 'nbi'
-        nbi = processNBI()
+        nbi = processNBI(customfolder, addpython, addruby)
 
         # Run makerw() to enable modifications
         nbimount, nbishadow = nbi.makerw(netinstallpath)
-        
-        nbi.modify(nbimount, netinstallpath, nbishadow, sourcefolder)
+
+        nbi.modify(nbimount, netinstallpath, nbishadow, mount)
+
+        # We're done, unmount all the things
+        unmountdmg(mount)
+        distutils.dir_util.remove_tree(TMPDIR)
+
         print 'Modifications complete...'
         print 'Done.'
     else:
+        # We're done, unmount all the things
+        unmountdmg(mount)
+        distutils.dir_util.remove_tree(TMPDIR)
+
         print 'No modifications will be made...'
         print 'Done.'
 
