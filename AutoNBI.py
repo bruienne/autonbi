@@ -267,14 +267,14 @@ def locateinstaller(rootpath='/Applications', auto=False):
         sys.exit(1)
 
     # Auto mode specified but the root path is not the installer app, bail
-    elif auto and not rootpath.endswith('.app'):
+    if auto and not rootpath.endswith('.app'):
         print 'Mode is auto but the rootpath is not an installer app or DMG, ' \
               ' unable to proceed.'
         sys.exit(1)
 
     # We're auto and the root path is an app - check InstallESD.dmg is there
     #   and return its location.
-    elif auto and rootpath.endswith('.app'):
+    elif rootpath.endswith('.app'):
         # Now look for the DMG
         if os.path.exists(os.path.join(rootpath, 'Contents/SharedSupport/InstallESD.dmg')):
             return os.path.join(rootpath, 'Contents/SharedSupport/InstallESD.dmg')
