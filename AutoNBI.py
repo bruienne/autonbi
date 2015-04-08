@@ -56,10 +56,10 @@
 # * [--enable-nbi][-e] Enable the output NBI by default. This sets the "Enabled"
 #   key in NBImageInfo.plist to "true".
 #
-# * [--enable-python][-p] Add the Python framework and libraries to the NBI
+# * [--add-python][-p] Add the Python framework and libraries to the NBI
 #   in order to support Python-based applications at runtime
 #
-# * [--enable-ruby][-r] Add the Ruby framework and libraries to the NBI
+# * [--add-ruby][-r] Add the Ruby framework and libraries to the NBI
 #   in order to support Ruby-based applications at runtime
 #
 # To invoke AutoNBI in interactive mode:

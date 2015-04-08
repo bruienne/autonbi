@@ -60,10 +60,10 @@ __Command line options:__
 * `[--enable-nbi][-e]` _Optional_ Enable the output NBI by default. This sets the "Enabled"
    key in NBImageInfo.plist to "true".
 
-* `[--enable-python][-p]` _Optional_ Add the Python framework and libraries to the NBI
+* `[--add-python][-p]` _Optional_ Add the Python framework and libraries to the NBI
    in order to support Python-based applications at runtime
 
-* `[--enable-ruby][-r]` _Optional_ Add the Ruby framework and libraries to the NBI
+* `[--add-ruby][-r]` _Optional_ Add the Ruby framework and libraries to the NBI
    in order to support Ruby-based applications at runtime
 
 __Examples:__
@@ -82,4 +82,4 @@ To replace "Packages" on the NBI boot volume with a custom version:
 
 To invoke AutoNBI in automatic mode and add the Python framework:
 
-  `sudo ./AutoNBI -s ~/InstallESD.dmg -d /Users/admin/BuildRoot -n Yosemite-10.10.2 -a --enable-python`
+  `sudo ./AutoNBI -s ~/InstallESD.dmg -d /Users/admin/BuildRoot -n Yosemite-10.10.2 -a --add-python`
