@@ -925,15 +925,7 @@ def main():
     customfolder = options.folder
     addpython = options.addpython
     addruby = options.addruby
-
-    if addpython and not addruby:
-        name = options.name + '+Python'
-    elif addruby and not addpython:
-        name = options.name + '+Ruby'
-    elif addpython and addruby:
-        name = options.name + '+Python+Ruby'
-    else:
-        name = options.name
+    name = options.name
 
     # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are set
     addcustom = len(customfolder) > 0
