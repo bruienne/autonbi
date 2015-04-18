@@ -18,6 +18,7 @@ __Thanks to:__
 * Per Olofsson for the awesome AutoDMG which inspired this tool
 * Tim Sutton for further encouragement and feedback on early versions
 * Graham Gilbert for testing, feature suggestions and code contributions
+* Michael Lynn for his invaluable help with PBZX and XZ processing
 
 This tool aids in the creation of Apple NetBoot Image (NBI) bundles.
 It can run either in interactive mode by passing it a folder, installer
