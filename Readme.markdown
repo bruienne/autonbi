@@ -38,7 +38,7 @@ __Command line options:__
   files are written. If the optional --folder arguments is given an
   identically named folder must be placed in the build root:
 
-  `./AutoNBI <arguments>P -d /Users/admin/BuildRoot --folder Packages`
+  `./AutoNBI.py <arguments>P -d /Users/admin/BuildRoot --folder Packages`
   -> Causes AutoNBI to look for `/Users/admin/BuildRoot/Packages`
 
 * `[--name][-n]` The name of the NBI bundle, without .nbi extension
@@ -70,16 +70,20 @@ __Examples:__
 -------------
 To invoke AutoNBI in interactive mode:
 
-  `sudo ./AutoNBI -s /Applications -d /Users/admin/BuildRoot -n Mavericks`
+  `sudo ./AutoNBI.py -s /Applications -d /Users/admin/BuildRoot -n Mavericks`
 
 To invoke AutoNBI in automatic mode:
 
-  `sudo ./AutoNBI -s ~/InstallESD.dmg -d /Users/admin/BuildRoot -n Mavericks -a`
+  `sudo ./AutoNBI.py -s ~/InstallESD.dmg -d /Users/admin/BuildRoot -n Mavericks -a`
 
 To replace "Packages" on the NBI boot volume with a custom version:
 
-  `sudo ./AutoNBI -s ~/InstallESD.dmg -d ~/BuildRoot -n Yosemite -f Packages -a`
+  `sudo ./AutoNBI.py -s ~/InstallESD.dmg -d ~/BuildRoot -n Yosemite -f Packages -a`
 
 To invoke AutoNBI in automatic mode and add the Python framework:
 
-  `sudo ./AutoNBI -s ~/InstallESD.dmg -d /Users/admin/BuildRoot -n Yosemite-10.10.2 -a --add-python`
+  `sudo ./AutoNBI.py -s ~/InstallESD.dmg -d /Users/admin/BuildRoot -n Yosemite-10.10.2 -a --add-python`
+
+To invoke AutoNBI in automatic mode, deploy a custom imaging client (launched through Packages/Extras/rc.imaging) and add the Python and Ruby frameworks:
+
+  `sudo ./AutoNBI.py -s /Applications/Install\ OS\ X\ Yosemite.app -d /Users/admin/BuildRoot -n Yosemite-10.10.2 --folder ~/Documents/Packages --add-python --add-ruby --auto`
