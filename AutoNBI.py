@@ -264,7 +264,7 @@ def locateinstaller(rootpath='/Applications', auto=False):
 
     # Remove a potential trailing slash (ie. from autocompletion)
     if rootpath.endswith('/'):
-        rootpath = rootpath[0:-1]
+        rootpath = rootpath.rstrip('/')
 
     # The given path doesn't exist, bail
     if not os.path.exists(rootpath):
