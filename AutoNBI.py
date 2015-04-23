@@ -262,6 +262,10 @@ def locateinstaller(rootpath='/Applications', auto=False):
         potential OS X installer apps containing InstallESD.dmg. Runs
         in interactive mode by default unless '-a' was provided at run"""
 
+    # Remove a potential trailing slash (ie. from autocompletion)
+    if rootpath.endswith('/'):
+        rootpath = rootpath.rstrip('/')
+
     # The given path doesn't exist, bail
     if not os.path.exists(rootpath):
         print "The root path '" + rootpath + "' is not a valid path - unable " \
