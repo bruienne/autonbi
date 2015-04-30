@@ -19,6 +19,7 @@ __Thanks to:__
 * Tim Sutton for further encouragement and feedback on early versions
 * Graham Gilbert for testing, feature suggestions and code contributions
 * Michael Lynn for his invaluable help with PBZX and XZ processing
+* Nate Walck for the feature that adds Utilities.plist to the NBI
 
 This tool aids in the creation of Apple NetBoot Image (NBI) bundles.
 It can run either in interactive mode by passing it a folder, installer
@@ -66,6 +67,8 @@ __Command line options:__
 
 * `[--add-ruby][-r]` _Optional_ Add the Ruby framework and libraries to the NBI
    in order to support Ruby-based applications at runtime
+
+* `[--utilities-plist][-r]` _Optional_ Add a custom Utilities.plist to modify the menu
 
 __Examples:__
 -------------
