@@ -355,7 +355,7 @@ def pickinstaller(installers):
     return choice
 
 
-def createnbi(workdir, description, name, enabled, dmgmount):
+def createnbi(workdir, description, name, enabled, nbiindex, dmgmount):
     """createnbi calls the 'createNetInstall.sh' script with the
         environment variables from the createvariables dict."""
 
@@ -382,7 +382,7 @@ def createnbi(workdir, description, name, enabled, dmgmount):
         print >> sys.stderr, 'Error: "%s" while processing %s.' % (err, unused)
         sys.exit(1)
 
-    buildplist(5000, description, name, enabled, workdir)
+    buildplist(nbiindex, description, name, enabled, workdir)
 
     os.unlink(os.path.join(workdir, 'createCommon.sh'))
     os.unlink(os.path.join(workdir, 'createVariables.sh'))
@@ -906,6 +906,10 @@ def main():
                       help='Optional. Toggles automation mode, suitable for scripted runs')
     parser.add_option('--enable-nbi', '-e', action='store_true', default=False,
                       help='Optional. Enables NBI.', dest='enablenbi')
+    parser.add_option('--index', '-i', default='5000',
+                      help='Optional. Sets the default NBI index. Defaults to 5000.')
+    parser.add_option('--version', '-V', default='10.9',
+                      help='Optional. Sets the OS base version. Defaults to 10.9.')
     parser.add_option('--add-ruby', '-r', action='store_true', default=False,
                       help='Optional. Enables Ruby in BaseSystem.', dest='addruby')
     parser.add_option('--add-python', '-p', action='store_true', default=False,
@@ -930,6 +934,7 @@ def main():
     addpython = options.addpython
     addruby = options.addruby
     name = options.name
+    nbiindex=options.index
 
     # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are set
     addcustom = len(customfolder) > 0
@@ -987,7 +992,7 @@ def main():
 
     # Now move on to the actual NBI creation
     print 'Creating NBI at ' + destination
-    createnbi(destination, description, name, enablenbi, mount)
+    createnbi(destination, description, name, enablenbi, nbiindex, mount)
 
     # Make our modifications if any were provided from the CLI
     if modifynbi:
