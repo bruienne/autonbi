@@ -908,8 +908,6 @@ def main():
                       help='Optional. Enables NBI.', dest='enablenbi')
     parser.add_option('--index', '-i', default='5000',
                       help='Optional. Sets the default NBI index. Defaults to 5000.')
-    parser.add_option('--version', '-V', default='10.9',
-                      help='Optional. Sets the OS base version. Defaults to 10.9.')
     parser.add_option('--add-ruby', '-r', action='store_true', default=False,
                       help='Optional. Enables Ruby in BaseSystem.', dest='addruby')
     parser.add_option('--add-python', '-p', action='store_true', default=False,
