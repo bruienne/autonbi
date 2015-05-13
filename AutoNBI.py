@@ -227,7 +227,7 @@ def getosversioninfo(mountpoint):
            version_info.get('ProductBuildVersion'), mountpoint
 
 
-def buildplist(nbiindex, nbidescription, nbiname, nbienabled, destdir=__file__):
+def buildplist(nbiindex, nbidescription, nbiname, nbienabled, isdefault, destdir=__file__):
     """buildplist takes a source, destination and name parameter that are used
         to create a valid plist for imagetool ingestion."""
 
@@ -249,7 +249,7 @@ def buildplist(nbiindex, nbidescription, nbiname, nbienabled, destdir=__file__):
                    'BackwardCompatible': False,
                    'DisabledSystemIdentifiers': disabledsystems,
                    'Type': 'NFS',
-                   'IsDefault': False,
+                   'IsDefault': isdefault,
                    'Name': nbiname,
                    'osVersion': '10.9'}
 
@@ -355,7 +355,7 @@ def pickinstaller(installers):
     return choice
 
 
-def createnbi(workdir, description, name, enabled, nbiindex, dmgmount):
+def createnbi(workdir, description, name, enabled, nbiindex, isdefault, dmgmount):
     """createnbi calls the 'createNetInstall.sh' script with the
         environment variables from the createvariables dict."""
 
@@ -382,7 +382,7 @@ def createnbi(workdir, description, name, enabled, nbiindex, dmgmount):
         print >> sys.stderr, 'Error: "%s" while processing %s.' % (err, unused)
         sys.exit(1)
 
-    buildplist(nbiindex, description, name, enabled, workdir)
+    buildplist(nbiindex, description, name, enabled, isdefault, workdir)
 
     os.unlink(os.path.join(workdir, 'createCommon.sh'))
     os.unlink(os.path.join(workdir, 'createVariables.sh'))
@@ -933,8 +933,11 @@ def main():
                       help='Optional. Enables Ruby in BaseSystem.', dest='addruby')
     parser.add_option('--add-python', '-p', action='store_true', default=False,
                       help='Optional. Enables Python in BaseSystem.', dest='addpython')
-    parser.add_option('--utilities-plist', default=False,
+    parser.add_option('--utilities-plist', action='store_true', default=False,
                       help='Optional. Add a custom Utilities.plist to modify the menu.', dest='utilplist')
+    parser.add_option('--default', action='store_true', default=False,
+                      help='Optional. Set the NBI as the default for all clients. Only on default should be \
+                            enabled on any given NetBoot/NetInstall server', dest='isdefault')
     parser.add_option('--index', default=5000, dest='nbiindex',
                       help='Optional. Set a custom Index for the NBI. Default is 5000.')
     parser.add_option('--system-enable', dest='sysidenabled', action='append', type='str',
@@ -962,6 +965,7 @@ def main():
     addruby = options.addruby
     name = options.name
     utilplist = options.utilplist
+    isdefault = options.isdefault
     nbiindex = options.nbiindex
     if options.sysidenabled:
         sysidenabled = options.sysidenabled
@@ -1033,7 +1037,7 @@ def main():
 
         # Now move on to the actual NBI creation
         print 'Creating NBI at ' + destination
-        createnbi(destination, description, name, enablenbi, nbiindex, mount)
+        createnbi(destination, description, name, enablenbi, nbiindex, isdefault, mount)
 
     # Make our modifications if any were provided from the CLI
     if modifynbi:
