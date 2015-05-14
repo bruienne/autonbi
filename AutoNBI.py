@@ -892,13 +892,17 @@ def main():
 
     # TBD - Full usage text
     usage = ('Usage: %prog --source/-s <path>\n'
-             '                   --destination/-d <path>\n'
              '                   --name/-n MyNBI\n'
+             '                   [--destination/-d] <path>\n'
              '                   [--folder/-f] FolderName\n'
              '                   [--auto/-a]\n'
              '                   [--enable/-e]\n'
+             '                   [--default]\n'
+             '                   [--index]\n'
+             '                   [--sysid-enable]\n'
              '                   [--add-python/-p]\n'
              '                   [--add-ruby/-r]\n'
+             '                   [--utilities-plist]\n'
              '    %prog creates a Lion, Mountain Lion, Mavericks or Yosemite\n'
              '    NetBoot NBI ready for use with a NetBoot server.\n\n'
              '    An option to modify the NBI\'s NetInstall.dmg is also provided\n'
@@ -909,7 +913,10 @@ def main():
              '    ./AutoNBI.py -s /Volumes/Disk/Install OS X Mavericks.app -d'
              ' ~/BuildRoot -n MyNBI -a\n'
              '    ./AutoNBI.py -s ~/Documents/InstallESD.dmg -d ~/BuildRoot -n MyNBI'
-             ' -f Packages -a')
+             ' -f Packages -a\n'
+             '    ./AutoNBI.py -s /Applications/Install\ OS\ X\ Yosemite.app -d /tmp -n Imagr\n'
+             '                 -f Packages -a --default --enable --index 6667\n'
+             '                 --sysid-enable MacBookPro12,1')
 
     # Setup a parser instance
     parser = optparse.OptionParser(usage=usage)
@@ -918,17 +925,17 @@ def main():
     parser.add_option('--source', '-s',
                       help='Required. Path to Install Mac OS X Lion.app '
                            'or Install OS X Mountain Lion.app or Install OS X Mavericks.app')
-    parser.add_option('--destination', '-d', default=os.getcwd(),
-                      help='Required. Path to save .plist and .nbi files')
     parser.add_option('--name', '-n',
                       help='Required. Name of the NBI, also applies to .plist')
+    parser.add_option('--destination', '-d', default=os.getcwd(),
+                      help='Optional. Path to save .plist and .nbi files. Defaults to CWD.')
     parser.add_option('--folder', '-f', default='',
                       help='Optional. Name of a folder on the NBI to modify. This will be the\
                             root below which changes will be made')
     parser.add_option('--auto', '-a', action='store_true', default=False,
                       help='Optional. Toggles automation mode, suitable for scripted runs')
     parser.add_option('--enable-nbi', '-e', action='store_true', default=False,
-                      help='Optional. Enables NBI.', dest='enablenbi')
+                      help='Optional. Marks NBI as enabled (IsEnabled = True).', dest='enablenbi')
     parser.add_option('--add-ruby', '-r', action='store_true', default=False,
                       help='Optional. Enables Ruby in BaseSystem.', dest='addruby')
     parser.add_option('--add-python', '-p', action='store_true', default=False,
@@ -936,17 +943,28 @@ def main():
     parser.add_option('--utilities-plist', action='store_true', default=False,
                       help='Optional. Add a custom Utilities.plist to modify the menu.', dest='utilplist')
     parser.add_option('--default', action='store_true', default=False,
-                      help='Optional. Set the NBI as the default for all clients. Only on default should be \
-                            enabled on any given NetBoot/NetInstall server', dest='isdefault')
+                      help='Optional. Marks the NBI as the default for all clients. Only one default should be '
+                           'enabled on any given NetBoot/NetInstall server.', dest='isdefault')
     parser.add_option('--index', default=5000, dest='nbiindex',
                       help='Optional. Set a custom Index for the NBI. Default is 5000.')
-    parser.add_option('--system-enable', dest='sysidenabled', action='append', type='str',
-                      help='Optional. Whitelist a given System ID (MacBookPro10,1) - can be \
-                            defined multiple times. WARNING: This will enable ONLY the listed\
-                            System IDs. All others will be disabled.')
+    parser.add_option('--sysid-enable', dest='sysidenabled', action='append', type='str',
+                      help='Optional. Whitelist a given System ID (\'MacBookPro10,1\') Can be '
+                           'defined multiple times. WARNING: This will enable ONLY the listed '
+                           'System IDs. Systems not explicitly marked as enabled will not be '
+                           'able to boot from this NBI.')
 
     # Parse the provided options
     options, arguments = parser.parse_args()
+
+    # Check our passed options, at least source, destination and name are required
+    if options is None:
+        parser.print_help()
+        sys.exit(-1)
+
+    if not options.source:
+        parser.error('Missing --source flag, stopping.')
+    if not options.name:
+        parser.error('Missing --name flag, stopping.')
 
     # Are we root?
     if os.getuid() != 0:
@@ -970,10 +988,6 @@ def main():
     if options.sysidenabled:
         sysidenabled = options.sysidenabled
         print('Enabling System IDs: %s' % sysidenabled)
-
-    if options is None:
-        parser.print_help()
-        sys.exit(-1)
 
     # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are true
     addcustom = len(customfolder) > 0
