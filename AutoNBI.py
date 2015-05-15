@@ -157,8 +157,8 @@ def unmountdmg(mountpoint):
         print >> sys.stderr, 'Polite unmount failed: %s' % err
         print >> sys.stderr, 'Attempting to force unmount %s' % mountpoint
         # try forcing the unmount
-        retcode = subprocess.call(['/usr/bin/hdiutil', 'detach', mountpoint,
-                                   '-force'])
+        retcode = subprocess.call(['/usr/bin/hdiutil', 'detach', '-force',
+                                    mountpoint])
         print('Unmounting successful...')
         if retcode:
             print >> sys.stderr, 'Failed to unmount %s' % mountpoint
@@ -562,7 +562,7 @@ class processNBI(object):
                                '-owners', 'on',
                                attach_source ]
     def dmgdetach(self, detach_mountpoint):
-        return [ self.hdiutil, 'detach',
+        return [ self.hdiutil, 'detach', '-force',
                           detach_mountpoint ]
     def dmgconvert(self, convert_source, convert_target, shadow_file):
         return [ self.hdiutil, 'convert',
