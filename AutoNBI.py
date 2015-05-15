@@ -945,7 +945,7 @@ def main():
     parser.add_option('--default', action='store_true', default=False,
                       help='Optional. Marks the NBI as the default for all clients. Only one default should be '
                            'enabled on any given NetBoot/NetInstall server.', dest='isdefault')
-    parser.add_option('--index', default=5000, dest='nbiindex',
+    parser.add_option('--index', default=5000, dest='nbiindex', type='int',
                       help='Optional. Set a custom Index for the NBI. Default is 5000.')
     parser.add_option('--sysid-enable', dest='sysidenabled', action='append', type='str',
                       help='Optional. Whitelist a given System ID (\'MacBookPro10,1\') Can be '
