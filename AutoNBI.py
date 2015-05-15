@@ -850,7 +850,8 @@ class processNBI(object):
                     print("Failed to add custom Utilites plist from %s" % self.utilplist)
 
             # Done adding frameworks to BaseSystem, unmount and convert
-            detachresult = self.runcmd(self.dmgdetach(basesystemmountpoint))
+            # detachresult = self.runcmd(self.dmgdetach(basesystemmountpoint))
+            detachresult = unmountdmg(basesystemmountpoint)
             basesystemnew = os.path.join(TMPDIR, 'BaseSystemNew.dmg')
             convertresult = self.runcmd(self.dmgconvert(basesystemdmg, basesystemnew, basesystemshadow))
             os.remove(basesystemdmg)
