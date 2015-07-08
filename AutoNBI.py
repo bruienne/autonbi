@@ -157,8 +157,8 @@ def unmountdmg(mountpoint):
         print >> sys.stderr, 'Polite unmount failed: %s' % err
         print >> sys.stderr, 'Attempting to force unmount %s' % mountpoint
         # try forcing the unmount
-        retcode = subprocess.call(['/usr/bin/hdiutil', 'detach', mountpoint,
-                                   '-force'])
+        retcode = subprocess.call(['/usr/bin/hdiutil', 'detach', '-force',
+                                    mountpoint])
         print('Unmounting successful...')
         if retcode:
             print >> sys.stderr, 'Failed to unmount %s' % mountpoint
@@ -227,13 +227,13 @@ def getosversioninfo(mountpoint):
            version_info.get('ProductBuildVersion'), mountpoint
 
 
-def buildplist(nbiindex, nbidescription, nbiname, nbienabled, destdir=__file__):
+def buildplist(nbiindex, nbidescription, nbiname, nbienabled, isdefault, destdir=__file__):
     """buildplist takes a source, destination and name parameter that are used
         to create a valid plist for imagetool ingestion."""
 
     nbipath = os.path.join(destdir, nbiname + '.nbi')
     platformsupport = FoundationPlist.readPlist(os.path.join(nbipath, 'i386', 'PlatformSupport.plist'))
-    enabledsystems = platformsupport.get('SupportedModelProperties')
+    disabledsystems = platformsupport.get('SupportedModelProperties')
 
     nbimageinfo = {'IsInstall': True,
                    'Index': nbiindex,
@@ -243,13 +243,13 @@ def buildplist(nbiindex, nbidescription, nbiname, nbienabled, destdir=__file__):
                    'IsEnabled': nbienabled,
                    'SupportsDiskless': False,
                    'RootPath': 'NetInstall.dmg',
-                   'EnabledSystemIdentifiers': enabledsystems,
+                   'EnabledSystemIdentifiers': sysidenabled,
                    'BootFile': 'booter',
                    'Architectures': ['i386'],
                    'BackwardCompatible': False,
-                   'DisabledSystemIdentifiers': [],
+                   'DisabledSystemIdentifiers': disabledsystems,
                    'Type': 'NFS',
-                   'IsDefault': False,
+                   'IsDefault': isdefault,
                    'Name': nbiname,
                    'osVersion': '10.9'}
 
@@ -355,7 +355,7 @@ def pickinstaller(installers):
     return choice
 
 
-def createnbi(workdir, description, name, enabled, nbiindex, dmgmount):
+def createnbi(workdir, description, name, enabled, nbiindex, isdefault, dmgmount):
     """createnbi calls the 'createNetInstall.sh' script with the
         environment variables from the createvariables dict."""
 
@@ -382,7 +382,7 @@ def createnbi(workdir, description, name, enabled, nbiindex, dmgmount):
         print >> sys.stderr, 'Error: "%s" while processing %s.' % (err, unused)
         sys.exit(1)
 
-    buildplist(nbiindex, description, name, enabled, workdir)
+    buildplist(nbiindex, description, name, enabled, isdefault, workdir)
 
     os.unlink(os.path.join(workdir, 'createCommon.sh'))
     os.unlink(os.path.join(workdir, 'createVariables.sh'))
@@ -532,11 +532,12 @@ class processNBI(object):
         created by createnbi()"""
 
     # Don't think we need this.
-    def __init__(self, customfolder = None, enablepython=False, enableruby=False):
+    def __init__(self, customfolder = None, enablepython=False, enableruby=False, utilplist=False):
          super(processNBI, self).__init__()
          self.customfolder = customfolder
          self.enablepython = enablepython
          self.enableruby = enableruby
+         self.utilplist = utilplist
          self.hdiutil = '/usr/bin/hdiutil'
 
 
@@ -561,7 +562,7 @@ class processNBI(object):
                                '-owners', 'on',
                                attach_source ]
     def dmgdetach(self, detach_mountpoint):
-        return [ self.hdiutil, 'detach',
+        return [ self.hdiutil, 'detach', '-force',
                           detach_mountpoint ]
     def dmgconvert(self, convert_source, convert_target, shadow_file):
         return [ self.hdiutil, 'convert',
@@ -729,9 +730,7 @@ class processNBI(object):
     # Allows modifications to be made to a DMG previously made writable by
     #   processNBI.makerw()
     def modify(self, nbimount, dmgpath, nbishadow, installersource):
-        # DO STUFF
 
-        # addframeworks = (self.enablepython or self.enableruby)
         addframeworks = []
         if self.enablepython:
             addframeworks.append('python')
@@ -744,7 +743,7 @@ class processNBI(object):
                      'ruby': {'sourcepayloads': ['BSD', 'Essentials'],
                               'regex': '\"*ruby*\" \"*lib*ruby*\" \"*Ruby.framework*\"'}
                    }
-
+        # Handle any custom content to be added, customfolder has a value
         if self.customfolder is not None:
             print("-------------------------------------------------------------------------")
             print "Modifying NetBoot volume at %s" % nbimount
@@ -760,13 +759,19 @@ class processNBI(object):
             print('About to process ' + processdir + ' for replacement...')
             if os.path.exists(processdir):
                 distutils.dir_util.remove_tree(processdir)
-                os.mkdir(processdir)
-                print('Copying ' + self.customfolder + ' to ' + processdir + '...')
-                distutils.dir_util.copy_tree(self.customfolder, processdir)
 
+            # Copy over the custom folder contents. If the folder didn't exists
+            # we can skip the above removal and get straight to copying.
+            os.mkdir(processdir)
+            print('Copying ' + self.customfolder + ' to ' + processdir + '...')
+            distutils.dir_util.copy_tree(self.customfolder, processdir)
+
+        # Is Python or Ruby being added? If so, do the work.
         if addframeworks:
 
-            # Setup the BaseSystem.dmg for modification
+            # Setup the BaseSystem.dmg for modification by mounting it with a shadow
+            # and resizing the shadowed image, 10 GB should be good. We'll shrink
+            # it again later.
             basesystemshadow = os.path.join(TMPDIR, 'BaseSystem.shadow')
             basesystemdmg = os.path.join(nbimount, 'BaseSystem.dmg')
 
@@ -778,10 +783,13 @@ class processNBI(object):
                 if 'mount-point' in entity:
                     basesystemmountpoint = entity['mount-point']
 
+            # Create an empty list to record cached Payload resources
             havepayload = []
 
+            # Loop through the frameworks we've been asked to include
             for framework in addframeworks:
 
+                # Get the cpio glob pattern/regex to extract the framework
                 regex = payloads[framework]['regex']
                 print("-------------------------------------------------------------------------")
                 print("Adding %s framework from %s to NBI at %s" % (framework.capitalize(), installersource, nbimount))
@@ -797,6 +805,7 @@ class processNBI(object):
 
                     print("Cached payloads: %s" % havepayload)
 
+                    # Check whether we already have this Payload from a previous run
                     if cpio_archive not in havepayload:
 
                         print("-------------------------------------------------------------------------")
@@ -806,6 +815,7 @@ class processNBI(object):
                         sysplatform = sys.platform
                         self.runcmd(self.xarextract(xar_source, sysplatform))
 
+                        # Determine the Payload file type using 'file'
                         payloadtype = self.runcmd(self.getfiletype(payloadsource)).split(': ')[1]
 
                         print("Processing payloadsource %s" % payloadsource)
@@ -829,8 +839,19 @@ class processNBI(object):
                 if os.path.exists(cpio_archive):
                     os.remove(cpio_archive)
 
+            # Add custom Utilities.plist if passed as an argument
+            if self.utilplist:
+                print("-------------------------------------------------------------------------")
+                print("Adding custom Utilities.plist from %s" % self.utilplist)
+                try:
+                    shutil.copyfile(os.path.abspath(self.utilplist), os.path.join(basesystemmountpoint +
+                                    '/System/Installation/CDIS/OS X Utilities.app/Contents/Resources/Utilities.plist'))
+                except:
+                    print("Failed to add custom Utilites plist from %s" % self.utilplist)
+
             # Done adding frameworks to BaseSystem, unmount and convert
-            detachresult = self.runcmd(self.dmgdetach(basesystemmountpoint))
+            # detachresult = self.runcmd(self.dmgdetach(basesystemmountpoint))
+            detachresult = unmountdmg(basesystemmountpoint)
             basesystemnew = os.path.join(TMPDIR, 'BaseSystemNew.dmg')
             convertresult = self.runcmd(self.dmgconvert(basesystemdmg, basesystemnew, basesystemshadow))
             os.remove(basesystemdmg)
@@ -854,8 +875,7 @@ class processNBI(object):
 
 
 TMPDIR = None
-
-# print _get_mac_ver()
+sysidenabled = []
 
 if LooseVersion(_get_mac_ver()) < "10.10":
     BUILDEXECPATH = ('/System/Library/CoreServices/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
@@ -869,15 +889,23 @@ def main():
     """Main routine"""
 
     global TMPDIR
+    global sysidenabled
 
     # TBD - Full usage text
     usage = ('Usage: %prog --source/-s <path>\n'
-             '                   --destination/-d <path>\n'
              '                   --name/-n MyNBI\n'
+             '                   [--destination/-d] <path>\n'
              '                   [--folder/-f] FolderName\n'
              '                   [--auto/-a]\n'
-             '    %prog creates a Lion, Mountain Lion or Mavericks NetBoot NBI\n'
-             '    ready for use with a NetBoot server.\n\n'
+             '                   [--enable/-e]\n'
+             '                   [--default]\n'
+             '                   [--index]\n'
+             '                   [--sysid-enable]\n'
+             '                   [--add-python/-p]\n'
+             '                   [--add-ruby/-r]\n'
+             '                   [--utilities-plist]\n'
+             '    %prog creates a Lion, Mountain Lion, Mavericks or Yosemite\n'
+             '    NetBoot NBI ready for use with a NetBoot server.\n\n'
              '    An option to modify the NBI\'s NetInstall.dmg is also provided\n'
              '    by specifying an optional name of a folder in the source root\n'
              '    to add or replace on the NetInstall.dmg.\n\n'
@@ -886,7 +914,10 @@ def main():
              '    ./AutoNBI.py -s /Volumes/Disk/Install OS X Mavericks.app -d'
              ' ~/BuildRoot -n MyNBI -a\n'
              '    ./AutoNBI.py -s ~/Documents/InstallESD.dmg -d ~/BuildRoot -n MyNBI'
-             ' -f Packages -a')
+             ' -f Packages -a\n'
+             '    ./AutoNBI.py -s /Applications/Install\ OS\ X\ Yosemite.app -d /tmp -n Imagr\n'
+             '                 -f Packages -a --default --enable --index 6667\n'
+             '                 --sysid-enable MacBookPro12,1')
 
     # Setup a parser instance
     parser = optparse.OptionParser(usage=usage)
@@ -895,26 +926,46 @@ def main():
     parser.add_option('--source', '-s',
                       help='Required. Path to Install Mac OS X Lion.app '
                            'or Install OS X Mountain Lion.app or Install OS X Mavericks.app')
-    parser.add_option('--destination', '-d',
-                      help='Required. Path to save .plist and .nbi files')
     parser.add_option('--name', '-n',
                       help='Required. Name of the NBI, also applies to .plist')
+    parser.add_option('--destination', '-d', default=os.getcwd(),
+                      help='Optional. Path to save .plist and .nbi files. Defaults to CWD.')
     parser.add_option('--folder', '-f', default='',
                       help='Optional. Name of a folder on the NBI to modify. This will be the\
                             root below which changes will be made')
     parser.add_option('--auto', '-a', action='store_true', default=False,
                       help='Optional. Toggles automation mode, suitable for scripted runs')
     parser.add_option('--enable-nbi', '-e', action='store_true', default=False,
-                      help='Optional. Enables NBI.', dest='enablenbi')
-    parser.add_option('--index', '-i', default='5000',
-                      help='Optional. Sets the default NBI index. Defaults to 5000.')
+                      help='Optional. Marks NBI as enabled (IsEnabled = True).', dest='enablenbi')
     parser.add_option('--add-ruby', '-r', action='store_true', default=False,
                       help='Optional. Enables Ruby in BaseSystem.', dest='addruby')
     parser.add_option('--add-python', '-p', action='store_true', default=False,
                       help='Optional. Enables Python in BaseSystem.', dest='addpython')
+    parser.add_option('--utilities-plist', action='store_true', default=False,
+                      help='Optional. Add a custom Utilities.plist to modify the menu.', dest='utilplist')
+    parser.add_option('--default', action='store_true', default=False,
+                      help='Optional. Marks the NBI as the default for all clients. Only one default should be '
+                           'enabled on any given NetBoot/NetInstall server.', dest='isdefault')
+    parser.add_option('--index', default=5000, dest='nbiindex', type='int',
+                      help='Optional. Set a custom Index for the NBI. Default is 5000.')
+    parser.add_option('--sysid-enable', dest='sysidenabled', action='append', type='str',
+                      help='Optional. Whitelist a given System ID (\'MacBookPro10,1\') Can be '
+                           'defined multiple times. WARNING: This will enable ONLY the listed '
+                           'System IDs. Systems not explicitly marked as enabled will not be '
+                           'able to boot from this NBI.')
 
     # Parse the provided options
     options, arguments = parser.parse_args()
+
+    # Check our passed options, at least source, destination and name are required
+    if options is None:
+        parser.print_help()
+        sys.exit(-1)
+
+    if not options.source:
+        parser.error('Missing --source flag, stopping.')
+    if not options.name:
+        parser.error('Missing --name flag, stopping.')
 
     # Are we root?
     if os.getuid() != 0:
@@ -932,18 +983,19 @@ def main():
     addpython = options.addpython
     addruby = options.addruby
     name = options.name
-    nbiindex=options.index
+    utilplist = options.utilplist
+    isdefault = options.isdefault
+    nbiindex = options.nbiindex
+    if options.sysidenabled:
+        sysidenabled = options.sysidenabled
+        print('Enabling System IDs: %s' % sysidenabled)
 
-    # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are set
+    # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are true
     addcustom = len(customfolder) > 0
     modifynbi = (addcustom or addpython or addruby)
 
     # Spin up a tmp dir for mounting
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
-
-    # If the destination path isn't absolute, we make it so to prevent errors
-    if not destination.startswith('/'):
-        destination = os.path.abspath(destination)
 
     # Now we start a typical run of the tool, first locate one or more
     #   installer app candidates
@@ -951,46 +1003,56 @@ def main():
     if os.path.isdir(root):
         print 'Locating installer...'
         source = locateinstaller(root, auto)
+        shouldcreatenbi = True
     elif mimetypes.guess_type(root)[0].endswith('diskimage'):
         print 'Source is a disk image.'
+        if 'NetInstall' in root:
+            print('Disk image is an existing NetInstall, will modify only...')
+            shouldcreatenbi = False
+        else:
+            print('Disk image is an InstallESD, will create new NetInstall...')
+            shouldcreatenbi = True
         source = root
     else:
         print 'Source is neither an installer app or InstallESD.dmg.'
         sys.exit(-1)
 
-    # If we have a list for our source, more than one installer app was found
-    #   so we run the list through pickinstaller() to pick one interactively
-    if type(source) == list:
-        source = pickinstaller(source)
+    if shouldcreatenbi:
+        # If the destination path isn't absolute, we make it so to prevent errors
+        if not destination.startswith('/'):
+            destination = os.path.abspath(destination)
 
-    print 'Creating NBI... (this may take a while)'
+        # If we have a list for our source, more than one installer app was found
+        #   so we run the list through pickinstaller() to pick one interactively
+        if type(source) == list:
+            source = pickinstaller(source)
 
-    # Prep the build root - create it if it's not there
-    if not os.path.exists(destination):
-        os.mkdir(destination)
+        # Prep the build root - create it if it's not there
+        if not os.path.exists(destination):
+            os.mkdir(destination)
 
-    # Mount our installer source DMG
-    print 'Mounting ' + source
-    mountpoints = mountdmg(source)
+        # Mount our installer source DMG
+        print 'Mounting ' + source
+        mountpoints = mountdmg(source)
 
-    # Get the mount point for the DMG
-    if len(mountpoints) > 1:
-        for i in mountpoints[0]:
-            if i.find('dmg'):
-                mount = i
-    else:
-        mount = mountpoints[0]
+        # Get the mount point for the DMG
+        if len(mountpoints) > 1:
+            for i in mountpoints[0]:
+                if i.find('dmg'):
+                    mount = i
+        else:
+            mount = mountpoints[0]
 
-    osversion, osbuild, unused = getosversioninfo(mount)
-    description = 'OS X ' + osversion + '-' + osbuild
+        osversion, osbuild, unused = getosversioninfo(mount)
+        description = 'OS X ' + osversion + '-' + osbuild
 
-    # Prep our build root for NBI creation
-    print 'Prepping ' + destination + ' with source mounted at ' + mount
-    prepworkdir(destination)
+        # Prep our build root for NBI creation
+        print 'Prepping ' + destination + ' with source mounted at ' + mount
+        prepworkdir(destination)
 
-    # Now move on to the actual NBI creation
-    print 'Creating NBI at ' + destination
-    createnbi(destination, description, name, enablenbi, nbiindex, mount)
+        # Now move on to the actual NBI creation
+        print 'Creating NBI at ' + destination
+        createnbi(destination, description, name, enablenbi, nbiindex, isdefault, mount)
 
     # Make our modifications if any were provided from the CLI
     if modifynbi:
@@ -999,14 +1061,18 @@ def main():
                 if os.path.isdir(customfolder):
                     customfolder = os.path.abspath(customfolder)
             except IOError:
-                print customfolder + " is not a valid path - unable to proceed."
+                print("%s is not a valid path - unable to proceed." % customfolder)
                 sys.exit(1)
 
         # Path to the NetInstall.dmg
-        netinstallpath = os.path.join(destination, name + '.nbi', 'NetInstall.dmg')
+        if shouldcreatenbi:
+            netinstallpath = os.path.join(destination, name + '.nbi', 'NetInstall.dmg')
+        else:
+            netinstallpath = root
+            mount = None
 
         # Initialize a new processNBI() instance as 'nbi'
-        nbi = processNBI(customfolder, addpython, addruby)
+        nbi = processNBI(customfolder, addpython, addruby, utilplist)
 
         # Run makerw() to enable modifications
         nbimount, nbishadow = nbi.makerw(netinstallpath)
@@ -1014,7 +1080,9 @@ def main():
         nbi.modify(nbimount, netinstallpath, nbishadow, mount)
 
         # We're done, unmount all the things
-        unmountdmg(mount)
+        if shouldcreatenbi:
+            unmountdmg(mount)
+
         distutils.dir_util.remove_tree(TMPDIR)
 
         print("-------------------------------------------------------------------------")
