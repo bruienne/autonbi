@@ -273,7 +273,10 @@ def locateinstaller(rootpath='/Applications', auto=False):
         sys.exit(1)
 
     # Auto mode specified but the root path is not the installer app, bail
-    if auto and not rootpath.endswith('.app'):
+    if auto and rootpath.endswith('com.apple.recovery.boot'):
+        print 'Source is a Recovery partition, not mounting an InstallESD...'
+        return rootpath
+    elif auto and not rootpath.endswith('.app'):
         print 'Mode is auto but the rootpath is not an installer app or DMG, ' \
               ' unable to proceed.'
         sys.exit(1)
@@ -566,7 +569,7 @@ class processNBI(object):
                           detach_mountpoint ]
     def dmgconvert(self, convert_source, convert_target, shadow_file):
         return [ self.hdiutil, 'convert',
-                          '-format', 'UDRO',
+                          '-format', 'UDZO',
                           '-o', convert_target,
                           '-shadow', shadow_file,
                           convert_source ]
@@ -693,7 +696,7 @@ class processNBI(object):
             fout = file(os.path.join(TMPDIR, cpio_archive), 'wb')
 
             for xzfile in chunks:
-                if '.xz' in xzfile:
+                if '.xz' in xzfile and os.path.getsize(xzfile) > 0:
                     print('Decompressing %s' % xzfile)
 
                     xzexec = find_executable('xz')
@@ -738,11 +741,53 @@ class processNBI(object):
             addframeworks.append('ruby')
 
         # Define the needed source PKGs for our frameworks
-        payloads = { 'python': {'sourcepayloads': ['BSD'],
-                                'regex': '\"*Py*\" \"*py*\"'},
-                     'ruby': {'sourcepayloads': ['BSD', 'Essentials'],
-                              'regex': '\"*ruby*\" \"*lib*ruby*\" \"*Ruby.framework*\"'}
-                   }
+        if isElCap:
+            # In ElCap pretty much everything is in Essentials.
+            payloads = { 'python': {'sourcepayloads': ['Essentials'],
+                                    'regex': '\"*Py*\" \"*py*\"'},
+                         'ruby': {'sourcepayloads': ['Essentials'],
+                                  'regex': '\"*ruby*\" \"*lib*ruby*\" \"*Ruby.framework*\"'}
+                       }
+        else:
+            payloads = { 'python': {'sourcepayloads': ['BSD'],
+                                    'regex': '\"*Py*\" \"*py*\"'},
+                         'ruby': {'sourcepayloads': ['BSD', 'Essentials'],
+                                  'regex': '\"*ruby*\" \"*lib*ruby*\" \"*Ruby.framework*\"'}
+                       }
+        # Set 'modifybasesystem' if any frameworks are to be added, we're building
+        #   an ElCap NBI or if we're adding a custom Utilites plist
+        modifybasesystem = (len(addframeworks) > 0 or isElCap or self.utilplist)
+
+        # If we need to make modifications to BaseSystem.dmg we mount it r/w
+        if modifybasesystem:
+            # Setup the BaseSystem.dmg for modification by mounting it with a shadow
+            # and resizing the shadowed image, 10 GB should be good. We'll shrink
+            # it again later.
+            basesystemshadow = os.path.join(TMPDIR, 'BaseSystem.shadow')
+            basesystemdmg = os.path.join(nbimount, 'BaseSystem.dmg')
+
+            result = self.runcmd(self.dmgresize(basesystemdmg, basesystemshadow))
+            plist = self.runcmd(self.dmgattach(basesystemdmg, basesystemshadow))
+            basesystemplist = plistlib.readPlistFromString(plist)
+
+            for entity in basesystemplist['system-entities']:
+                if 'mount-point' in entity:
+                    basesystemmountpoint = entity['mount-point']
+
+        # OS X 10.11 El Capitan triggers an Installer Progress app which causes
+        #   custom installer workflows using 'Packages/Extras' to fail so
+        #   we need to nix it. Thanks, Apple.
+        if isElCap:
+            rcdotinstallpath = os.path.join(basesystemmountpoint, 'private/etc/rc.install')
+            rcdotinstallro = open(rcdotinstallpath, "r")
+            rcdotinstalllines = rcdotinstallro.readlines()
+            rcdotinstallro.close()
+            rcdotinstallw = open(rcdotinstallpath, "w")
+            for line in rcdotinstalllines:
+                if line.rstrip() != "/System/Library/CoreServices/Installer\ Progress.app/Contents/MacOS/Installer\ Progress &":
+                    rcdotinstallw.write(line)
+            rcdotinstallw.close()
+
         # Handle any custom content to be added, customfolder has a value
         if self.customfolder is not None:
             print("-------------------------------------------------------------------------")
@@ -768,20 +813,6 @@ class processNBI(object):
 
         # Is Python or Ruby being added? If so, do the work.
         if addframeworks:
-
-            # Setup the BaseSystem.dmg for modification by mounting it with a shadow
-            # and resizing the shadowed image, 10 GB should be good. We'll shrink
-            # it again later.
-            basesystemshadow = os.path.join(TMPDIR, 'BaseSystem.shadow')
-            basesystemdmg = os.path.join(nbimount, 'BaseSystem.dmg')
-
-            result = self.runcmd(self.dmgresize(basesystemdmg, basesystemshadow))
-            plist = self.runcmd(self.dmgattach(basesystemdmg, basesystemshadow))
-            basesystemplist = plistlib.readPlistFromString(plist)
-
-            for entity in basesystemplist['system-entities']:
-                if 'mount-point' in entity:
-                    basesystemmountpoint = entity['mount-point']
 
             # Create an empty list to record cached Payload resources
             havepayload = []
@@ -839,15 +870,17 @@ class processNBI(object):
                 if os.path.exists(cpio_archive):
                     os.remove(cpio_archive)
 
-            # Add custom Utilities.plist if passed as an argument
-            if self.utilplist:
-                print("-------------------------------------------------------------------------")
-                print("Adding custom Utilities.plist from %s" % self.utilplist)
-                try:
-                    shutil.copyfile(os.path.abspath(self.utilplist), os.path.join(basesystemmountpoint +
-                                    '/System/Installation/CDIS/OS X Utilities.app/Contents/Resources/Utilities.plist'))
-                except:
-                    print("Failed to add custom Utilites plist from %s" % self.utilplist)
+        # Add custom Utilities.plist if passed as an argument
+        if self.utilplist:
+            print("-------------------------------------------------------------------------")
+            print("Adding custom Utilities.plist from %s" % self.utilplist)
+            try:
+                shutil.copyfile(os.path.abspath(self.utilplist), os.path.join(basesystemmountpoint,
+                                'System/Installation/CDIS/OS X Utilities.app/Contents/Resources/Utilities.plist'))
+            except:
+                print("Failed to add custom Utilites plist from %s" % self.utilplist)
+
+        if modifybasesystem and basesystemmountpoint:
 
             # Done adding frameworks to BaseSystem, unmount and convert
             # detachresult = self.runcmd(self.dmgdetach(basesystemmountpoint))
@@ -876,14 +909,17 @@ class processNBI(object):
 
 TMPDIR = None
 sysidenabled = []
+isElCap = False
 
-if LooseVersion(_get_mac_ver()) < "10.10":
+if LooseVersion(_get_mac_ver()) > "10.10":
+    BUILDEXECPATH = ('/System/Library/PrivateFrameworks/SIUFoundation.framework/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
+    isElCap = True
+elif LooseVersion(_get_mac_ver()) < "10.10":
     BUILDEXECPATH = ('/System/Library/CoreServices/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
                  'Versions/A/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
 else:
     BUILDEXECPATH = ('/System/Library/CoreServices/Applications/System Image Utility.app/Contents/Frameworks/SIUFoundation.framework/'
                  'Versions/A/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
-
 
 def main():
     """Main routine"""
@@ -1009,10 +1045,11 @@ def main():
         if 'NetInstall' in root:
             print('Disk image is an existing NetInstall, will modify only...')
             shouldcreatenbi = False
-        else:
+        elif 'InstallESD' in root:
             print('Disk image is an InstallESD, will create new NetInstall...')
             shouldcreatenbi = True
         source = root
+
     else:
         print 'Source is neither an installer app or InstallESD.dmg.'
         sys.exit(-1)
@@ -1031,17 +1068,23 @@ def main():
         if not os.path.exists(destination):
             os.mkdir(destination)
 
-        # Mount our installer source DMG
-        print 'Mounting ' + source
-        mountpoints = mountdmg(source)
+        if source.endswith('dmg'):
+            # Mount our installer source DMG
+            print 'Mounting ' + source
+            mountpoints = mountdmg(source)
 
-        # Get the mount point for the DMG
-        if len(mountpoints) > 1:
-            for i in mountpoints[0]:
-                if i.find('dmg'):
-                    mount = i
+            # Get the mount point for the DMG
+            if len(mountpoints) > 1:
+                for i in mountpoints[0]:
+                    if i.find('dmg'):
+                        mount = i
+            else:
+                mount = mountpoints[0]
+        elif source.endswith('com.apple.recovery.boot'):
+            mount = source
         else:
-            mount = mountpoints[0]
+            print 'Install source is neither InstallESD nor Recovery drive, this is bad.'
+	    sys.exit(-1)
 
         osversion, osbuild, unused = getosversioninfo(mount)
         description = 'OS X ' + osversion + '-' + osbuild
