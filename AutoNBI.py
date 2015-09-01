@@ -743,10 +743,11 @@ class processNBI(object):
         # Define the needed source PKGs for our frameworks
         if isElCap:
             # In ElCap pretty much everything is in Essentials.
+            # We also need to add libssl as it's no longer standard.
             payloads = { 'python': {'sourcepayloads': ['Essentials'],
-                                    'regex': '\"*Py*\" \"*py*\"'},
+                                    'regex': '\"*Py*\" \"*py*\" \"*libssl*\"'},
                          'ruby': {'sourcepayloads': ['Essentials'],
-                                  'regex': '\"*ruby*\" \"*lib*ruby*\" \"*Ruby.framework*\"'}
+                                  'regex': '\"*ruby*\" \"*lib*ruby*\" \"*Ruby.framework*\"  \"*libssl*\"'}
                        }
         else:
             payloads = { 'python': {'sourcepayloads': ['BSD'],
@@ -1084,7 +1085,7 @@ def main():
             mount = source
         else:
             print 'Install source is neither InstallESD nor Recovery drive, this is bad.'
-	    sys.exit(-1)
+            sys.exit(-1)
 
         osversion, osbuild, unused = getosversioninfo(mount)
         description = 'OS X ' + osversion + '-' + osbuild
