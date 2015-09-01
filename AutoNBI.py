@@ -96,7 +96,6 @@ def _get_mac_ver():
 
 #  Below code from COSXIP by Greg Neagle
 
-
 def cleanUp():
     """Cleanup our TMPDIR"""
     if TMPDIR:
@@ -109,7 +108,6 @@ def fail(errmsg=''):
     if errmsg:
         print >> sys.stderr, errmsg
     cleanUp()
-    # exit
     exit(1)
 
 
@@ -164,7 +162,6 @@ def unmountdmg(mountpoint):
             print >> sys.stderr, 'Failed to unmount %s' % mountpoint
 
 #  Above code from COSXIP by Greg Neagle
-
 
 def convertdmg(dmgpath, nbishadow):
     """
