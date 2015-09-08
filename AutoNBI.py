@@ -913,7 +913,7 @@ def main():
              '    by specifying an optional name of a folder in the source root\n'
              '    to add or replace on the NetInstall.dmg.\n\n'
              '    Due to the continual reorgnization of private Apple Frameworks,\n'
-             '    %prog Yosemite and El Capitan NBIs must be created on\n'
+             '    %prog, Yosemite and El Capitan NBIs must be created on\n'
              '    their respective Operating Systems.\n\n'
              '    Examples:\n'
              '    ./AutoNBI.py -s /Applications -d ~/BuildRoot -n MyNBI\n'
