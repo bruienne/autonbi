@@ -227,7 +227,7 @@ def getosversioninfo(mountpoint):
            version_info.get('ProductBuildVersion'), mountpoint
 
 
-def buildplist(nbiindex, nbidescription, nbiname, nbienabled, isdefault, destdir=__file__):
+def buildplist(nbiindex, nbitype, nbidescription, nbiosversion, nbiname, nbienabled, isdefault, destdir=__file__):
     """buildplist takes a source, destination and name parameter that are used
         to create a valid plist for imagetool ingestion."""
 
@@ -248,10 +248,10 @@ def buildplist(nbiindex, nbidescription, nbiname, nbienabled, isdefault, destdir
                    'Architectures': ['i386'],
                    'BackwardCompatible': False,
                    'DisabledSystemIdentifiers': disabledsystems,
-                   'Type': 'NFS',
+                   'Type': nbitype,
                    'IsDefault': isdefault,
                    'Name': nbiname,
-                   'osVersion': '10.9'}
+                   'osVersion': nbiosversion}
 
     plistfile = os.path.join(nbipath, 'NBImageInfo.plist')
     FoundationPlist.writePlist(nbimageinfo, plistfile)
@@ -355,7 +355,7 @@ def pickinstaller(installers):
     return choice
 
 
-def createnbi(workdir, description, name, enabled, nbiindex, isdefault, dmgmount):
+def createnbi(workdir, description, osversion, name, enabled, nbiindex, nbitype, isdefault, dmgmount):
     """createnbi calls the 'createNetInstall.sh' script with the
         environment variables from the createvariables dict."""
 
@@ -382,7 +382,7 @@ def createnbi(workdir, description, name, enabled, nbiindex, isdefault, dmgmount
         print >> sys.stderr, 'Error: "%s" while processing %s.' % (err, unused)
         sys.exit(1)
 
-    buildplist(nbiindex, description, name, enabled, isdefault, workdir)
+    buildplist(nbiindex, nbitype, description, osversion, name, enabled, isdefault, workdir)
 
     os.unlink(os.path.join(workdir, 'createCommon.sh'))
     os.unlink(os.path.join(workdir, 'createVariables.sh'))
@@ -901,6 +901,7 @@ def main():
              '                   [--default]\n'
              '                   [--index]\n'
              '                   [--sysid-enable]\n'
+             '                   [--type]\n'
              '                   [--add-python/-p]\n'
              '                   [--add-ruby/-r]\n'
              '                   [--utilities-plist]\n'
@@ -948,6 +949,8 @@ def main():
                            'enabled on any given NetBoot/NetInstall server.', dest='isdefault')
     parser.add_option('--index', default=5000, dest='nbiindex', type='int',
                       help='Optional. Set a custom Index for the NBI. Default is 5000.')
+    parser.add_option('--type', default='NFS', dest='nbitype',
+                      help='Optional. Set a custom Type for the NBI. HTTP or NFS. Default is NFS.')
     parser.add_option('--sysid-enable', dest='sysidenabled', action='append', type='str',
                       help='Optional. Whitelist a given System ID (\'MacBookPro10,1\') Can be '
                            'defined multiple times. WARNING: This will enable ONLY the listed '
@@ -986,6 +989,7 @@ def main():
     utilplist = options.utilplist
     isdefault = options.isdefault
     nbiindex = options.nbiindex
+    nbitype = options.nbitype
     if options.sysidenabled:
         sysidenabled = options.sysidenabled
         print('Enabling System IDs: %s' % sysidenabled)
@@ -1052,7 +1056,8 @@ def main():
 
         # Now move on to the actual NBI creation
         print 'Creating NBI at ' + destination
-        createnbi(destination, description, name, enablenbi, nbiindex, isdefault, mount)
+        print 'Base NBI Operating System is ' + osversion
+        createnbi(destination, description, osversion, name, enablenbi, nbiindex, nbitype, isdefault, mount)
 
     # Make our modifications if any were provided from the CLI
     if modifynbi:
