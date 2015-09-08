@@ -909,7 +909,7 @@ TMPDIR = None
 sysidenabled = []
 isElCap = False
 
-if LooseVersion(_get_mac_ver()) > "10.10":
+if LooseVersion(_get_mac_ver()) >= "10.11":
     BUILDEXECPATH = ('/System/Library/PrivateFrameworks/SIUFoundation.framework/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
     isElCap = True
 elif LooseVersion(_get_mac_ver()) < "10.10":
