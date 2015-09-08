@@ -901,6 +901,7 @@ def main():
              '                   [--default]\n'
              '                   [--index]\n'
              '                   [--sysid-enable]\n'
+             '                   [--type]\n'
              '                   [--add-python/-p]\n'
              '                   [--add-ruby/-r]\n'
              '                   [--utilities-plist]\n'
