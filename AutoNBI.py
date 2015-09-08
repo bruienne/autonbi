@@ -566,7 +566,7 @@ class processNBI(object):
                           detach_mountpoint ]
     def dmgconvert(self, convert_source, convert_target, shadow_file):
         return [ self.hdiutil, 'convert',
-                          '-format', 'UDZO',
+                          '-format', 'UDRO',
                           '-o', convert_target,
                           '-shadow', shadow_file,
                           convert_source ]
