@@ -252,7 +252,7 @@ def buildplist(nbiindex, nbitype, nbidescription, nbiosversion, nbiname, nbienab
     #   model IDs found by looking up their board IDs to 'disabledsystemidentifiers'
 
     disabledsystemidentifiers = platformsupport.get('SupportedModelProperties') or []
-    for boardid in platformsupport.get('SupportedBoardIds'):
+    for boardid in platformsupport.get('SupportedBoardIds') or []:
         # Call modelPropertiesForBoardIDs from the ServerInfo framework to
         #   look up the model ID for this board ID.
         for sysid in ServerInformation.ServerInformationComputerModelInfo.modelPropertiesForBoardIDs_([boardid]):
