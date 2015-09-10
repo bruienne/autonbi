@@ -13,6 +13,7 @@
 # Thanks to: Greg Neagle for overall inspiration and code snippets (COSXIP)
 #            Per Olofsson for the awesome AutoDMG which inspired this tool
 #            Tim Sutton for further encouragement and feedback on early versions
+#            Michael Lynn for the ServerInformation framework hackery
 #
 # This tool aids in the creation of Apple NetBoot Image (NBI) bundles.
 # It can run either in interactive mode by passing it a folder, installer
@@ -83,6 +84,7 @@ import shutil
 from distutils.version import LooseVersion
 from distutils.spawn import find_executable
 from ctypes import CDLL, Structure, c_void_p, c_size_t, c_uint, c_uint32, c_uint64, create_string_buffer, addressof, sizeof, byref
+import objc
 
 sys.path.append("/usr/local/munki/munkilib")
 import FoundationPlist
@@ -93,6 +95,16 @@ def _get_mac_ver():
     p = subprocess.Popen(['sw_vers', '-productVersion'], stdout=subprocess.PIPE)
     stdout, stderr = p.communicate()
     return stdout.strip()
+
+# Setup access to the ServerInformation private framework to match board IDs to
+#   model IDs if encountered (10.11 only so far) Code by Michael Lynn. Thanks!
+class attrdict(dict):
+    __getattr__ = dict.__getitem__
+    __setattr__ = dict.__setitem__
+
+ServerInformation = attrdict()
+ServerInformation_bundle = objc.loadBundle('ServerInformation', ServerInformation, \
+    bundle_path='/System/Library/PrivateFrameworks/ServerInformation.framework')
 
 #  Below code from COSXIP by Greg Neagle
 
@@ -228,9 +240,26 @@ def buildplist(nbiindex, nbitype, nbidescription, nbiosversion, nbiname, nbienab
     """buildplist takes a source, destination and name parameter that are used
         to create a valid plist for imagetool ingestion."""
 
+    # Read and parse PlatformSupport.plist which has a reasonably reliable list
+    #   of model IDs and board IDs supported by the OS X version being built
+
     nbipath = os.path.join(destdir, nbiname + '.nbi')
     platformsupport = FoundationPlist.readPlist(os.path.join(nbipath, 'i386', 'PlatformSupport.plist'))
-    disabledsystems = platformsupport.get('SupportedModelProperties') or []
+
+    # OS X versions prior to 10.11 list both SupportedModelProperties and
+    #   SupportedBoardIds - 10.11 only lists SupportedBoardIds. So we need to
+    #   check both and append to the list if missing. Basically appends any
+    #   model IDs found by looking up their board IDs to 'disabledsystemidentifiers'
+
+    disabledsystemidentifiers = platformsupport.get('SupportedModelProperties') or []
+    for boardid in platformsupport.get('SupportedBoardIds'):
+        # Call modelPropertiesForBoardIDs from the ServerInfo framework to
+        #   look up the model ID for this board ID.
+        for sysid in ServerInformation.ServerInformationComputerModelInfo.modelPropertiesForBoardIDs_([boardid]):
+            # If the returned model ID is not yet in 'disabledsystemidentifiers'
+            #   add it, but not if it's an unresolved 'Mac-*' board ID.
+            if sysid not in disabledsystemidentifiers and 'Mac-' not in sysid:
+                disabledsystemidentifiers.append(sysid)
 
     nbimageinfo = {'IsInstall': True,
                    'Index': nbiindex,
@@ -244,7 +273,7 @@ def buildplist(nbiindex, nbitype, nbidescription, nbiosversion, nbiname, nbienab
                    'BootFile': 'booter',
                    'Architectures': ['i386'],
                    'BackwardCompatible': False,
-                   'DisabledSystemIdentifiers': disabledsystems,
+                   'DisabledSystemIdentifiers': disabledsystemidentifiers,
                    'Type': nbitype,
                    'IsDefault': isdefault,
                    'Name': nbiname,
