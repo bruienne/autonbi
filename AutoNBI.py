@@ -230,7 +230,7 @@ def buildplist(nbiindex, nbitype, nbidescription, nbiosversion, nbiname, nbienab
 
     nbipath = os.path.join(destdir, nbiname + '.nbi')
     platformsupport = FoundationPlist.readPlist(os.path.join(nbipath, 'i386', 'PlatformSupport.plist'))
-    disabledsystems = platformsupport.get('SupportedModelProperties')
+    disabledsystems = platformsupport.get('SupportedModelProperties') or []
 
     nbimageinfo = {'IsInstall': True,
                    'Index': nbiindex,
