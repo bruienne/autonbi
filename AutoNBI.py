@@ -233,7 +233,7 @@ def buildplist(nbiindex, nbitype, nbidescription, nbiosversion, nbiname, nbienab
 
     nbipath = os.path.join(destdir, nbiname + '.nbi')
     platformsupport = FoundationPlist.readPlist(os.path.join(nbipath, 'i386', 'PlatformSupport.plist'))
-    disabledsystems = platformsupport.get('SupportedModelProperties')
+    disabledsystems = platformsupport.get('SupportedModelProperties') or []
 
     nbimageinfo = {'IsInstall': True,
                    'Index': nbiindex,
@@ -904,6 +904,7 @@ def main():
              '                   [--type]\n'
              '                   [--add-python/-p]\n'
              '                   [--add-ruby/-r]\n'
+             '                   [--add-cert]\n'
              '                   [--utilities-plist]\n'
              '    %prog creates a Lion, Mountain Lion, Mavericks or Yosemite\n'
              '    NetBoot NBI ready for use with a NetBoot server.\n\n'
@@ -942,6 +943,8 @@ def main():
                       help='Optional. Enables Ruby in BaseSystem.', dest='addruby')
     parser.add_option('--add-python', '-p', action='store_true', default=False,
                       help='Optional. Enables Python in BaseSystem.', dest='addpython')
+    parser.add_option('--add-cert', action='append', type='str', default=None,
+                      help='Optional. Adds certificate(s) at <path(s)> to image.', dest='addcert')
     parser.add_option('--utilities-plist', action='store_true', default=False,
                       help='Optional. Add a custom Utilities.plist to modify the menu.', dest='utilplist')
     parser.add_option('--default', action='store_true', default=False,
@@ -978,18 +981,20 @@ def main():
 
     # Setup our base requirements for installer app root path, destination,
     #   name of the NBI and auto mode.
-    root = options.source
-    destination = options.destination
-    auto = options.auto
-    enablenbi = options.enablenbi
-    customfolder = options.folder
+    addcerts = options.addcerts
     addpython = options.addpython
     addruby = options.addruby
-    name = options.name
-    utilplist = options.utilplist
+    auto = options.auto
+    customfolder = options.folder
+    destination = options.destination
+    enablenbi = options.enablenbi
     isdefault = options.isdefault
+    name = options.name
     nbiindex = options.nbiindex
     nbitype = options.nbitype
+    root = options.source
+    utilplist = options.utilplist
+
     if options.sysidenabled:
         sysidenabled = options.sysidenabled
         print('Enabling System IDs: %s' % sysidenabled)
