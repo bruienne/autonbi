@@ -1,7 +1,8 @@
 __AutoNBI.py__
 ==============
-__A tool to automate (or not) the building and customization of Apple NetBoot NBI bundles.__
+__A tool to automate (or not) the building and customization of Apple NetInstall Images.__
 
+NetInstall Images differ from a NetBoot Image in that NetInstall Images contain the minimal components needed to Install an OS. For further clarification see Apple's OSX Server documentation [here.]([https://help.apple.com/advancedserveradmin/mac/4.0/#/apdCACEA65C-46BE-4DD2-AE2D-7CB14478C394])
 
 
 __Requirements__:  
@@ -21,7 +22,7 @@ __Thanks to:__
 * Michael Lynn for his invaluable help with PBZX and XZ processing
 * Nate Walck for the feature that adds Utilities.plist to the NBI
 
-This tool aids in the creation of Apple NetBoot Image (NBI) bundles.
+This tool aids in the creation of Apple NetInstall Images (known as: NBI).
 It can run either in interactive mode by passing it a folder, installer
 application or DMG or automatically, integrated into a larger workflow.
 
