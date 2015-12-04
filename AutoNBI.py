@@ -593,17 +593,42 @@ class processNBI(object):
     def dmgdetach(self, detach_mountpoint):
         return [ self.hdiutil, 'detach', '-force',
                           detach_mountpoint ]
-    def dmgconvert(self, convert_source, convert_target, shadow_file):
-        return [ self.hdiutil, 'convert',
-                          '-format', 'UDRO',
-                          '-o', convert_target,
-                          '-shadow', shadow_file,
-                          convert_source ]
-    def dmgresize(self, resize_source, shadow_file):
-        return [ self.hdiutil, 'resize',
-                          '-size', '10G',
+    def dmgconvert(self, convert_source, convert_target, shadow_file, mode):
+        # We have a shadow file, so use it. Otherwise don't.
+        if shadow_file:
+            command = [ self.hdiutil, 'convert',
+                              '-format', mode,
+                              '-o', convert_target,
+                              '-shadow', shadow_file,
+                              convert_source ]
+        else:
+            command = [ self.hdiutil, 'convert',
+                              '-format', mode,
+                              '-o', convert_target,
+                              convert_source ]
+        return command
+
+    def dmgresize(self, resize_source, shadow_file=None, size=None):
+
+        print "Will resize DMG at mount: %s" % resize_source
+
+        if shadow_file:
+            return [ self.hdiutil, 'resize',
+                          '-size', size,
                           '-shadow', shadow_file,
                           resize_source ]
+        else:
+            proc = subprocess.Popen(['/usr/bin/hdiutil', 'resize', '-limits', resize_source],
+                                      bufsize=-1, stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)
+
+            (output, err) = proc.communicate()
+
+            size = output.split('\t')[0]
+
+            return [ self.hdiutil, 'resize',
+                          '-size', '%sb' % size, resize_source ]
+
     def xarextract(self, xar_source, sysplatform):
 
         if 'darwin' in sysplatform:
@@ -793,7 +818,7 @@ class processNBI(object):
             basesystemshadow = os.path.join(TMPDIR, 'BaseSystem.shadow')
             basesystemdmg = os.path.join(nbimount, 'BaseSystem.dmg')
 
-            result = self.runcmd(self.dmgresize(basesystemdmg, basesystemshadow))
+            result = self.runcmd(self.dmgresize(basesystemdmg, basesystemshadow, '8G'))
             plist = self.runcmd(self.dmgattach(basesystemdmg, basesystemshadow))
             basesystemplist = plistlib.readPlistFromString(plist)
 
@@ -912,10 +937,24 @@ class processNBI(object):
             # Done adding frameworks to BaseSystem, unmount and convert
             # detachresult = self.runcmd(self.dmgdetach(basesystemmountpoint))
             detachresult = unmountdmg(basesystemmountpoint)
-            basesystemnew = os.path.join(TMPDIR, 'BaseSystemNew.dmg')
-            convertresult = self.runcmd(self.dmgconvert(basesystemdmg, basesystemnew, basesystemshadow))
+
+            # Set some DMG conversion targets for later
+            basesystemrw = os.path.join(TMPDIR, 'BaseSystemRW.dmg')
+            basesystemro = os.path.join(TMPDIR, 'BaseSystemRO.dmg')
+
+            # Convert to UDRW, the only format that will allow resizing the BaseSystem.dmg later
+            convertresult = self.runcmd(self.dmgconvert(basesystemdmg, basesystemrw, basesystemshadow, 'UDRW'))
+            # Delete the original DMG, we need to clear up some space where possible
             os.remove(basesystemdmg)
-            shutil.copyfile(basesystemnew, basesystemdmg)
+
+            # Resize BaseSystem.dmg to its smallest possible size (using hdiutil resize -limits)
+            resizeresult = self.runcmd(self.dmgresize(basesystemrw))
+
+            # Convert again, to UDRO, to shrink the final DMG size more
+            convertresult = self.runcmd(self.dmgconvert(basesystemrw, basesystemro, None, 'UDRO'))
+
+            # Rename the finalized DMG to its intended name BaseSystem.dmg
+            shutil.copyfile(basesystemro, basesystemdmg)
 
         # We're done, unmount the outer NBI DMG.
         unmountdmg(nbimount)
