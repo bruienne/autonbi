@@ -103,7 +103,8 @@ class attrdict(dict):
     __setattr__ = dict.__setitem__
 
 ServerInformation = attrdict()
-ServerInformation_bundle = objc.loadBundle('ServerInformation', ServerInformation, \
+ServerInformation_bundle = objc.loadBundle('ServerInformation',
+                                            ServerInformation,
     bundle_path='/System/Library/PrivateFrameworks/ServerInformation.framework')
 
 #  Below code from COSXIP by Greg Neagle
@@ -1084,15 +1085,21 @@ def main():
     if not options.name:
         parser.error('Missing --name flag, stopping.')
 
+    # Get the root path now, we need to test and bail if it's not found soon.
+    root = options.source
+
     # Are we root?
     if os.getuid() != 0:
         parser.print_usage()
         print >> sys.stderr, 'This tool requires sudo or root privileges.'
         exit(-1)
 
+    if not os.path.exists(root):
+        print >> sys.stderr, 'The given source at %s does not exist.' % root
+        exit(-1)
+
     # Setup our base requirements for installer app root path, destination,
     #   name of the NBI and auto mode.
-    root = options.source
     destination = options.destination
     auto = options.auto
     enablenbi = options.enablenbi
