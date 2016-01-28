@@ -848,7 +848,7 @@ class processNBI(object):
             # Reports of slow NetBoot speeds with 10.11 have lead others to
             #   remove various launch items that seem to cause this. Remove some
             #   of those as a stab at speeding things back up.
-            baseldpath = os.path.join(basesystemmountpoint, '/System/Library/LaunchDaemons')
+            baseldpath = os.path.join(basesystemmountpoint, 'System/Library/LaunchDaemons')
             os.unlink(os.path.join(baseldpath, 'com.apple.locationd.plist'))
             os.unlink(os.path.join(baseldpath, 'com.apple.lsd.plist'))
             os.unlink(os.path.join(baseldpath, 'com.apple.tccd.system.plist'))
