@@ -563,12 +563,12 @@ class processNBI(object):
 
     # Don't think we need this.
     def __init__(self, customfolder = None, enablepython=False, enableruby=False, utilplist=False):
-         super(processNBI, self).__init__()
-         self.customfolder = customfolder
-         self.enablepython = enablepython
-         self.enableruby = enableruby
-         self.utilplist = utilplist
-         self.hdiutil = '/usr/bin/hdiutil'
+        super(processNBI, self).__init__()
+        self.customfolder = customfolder
+        self.enablepython = enablepython
+        self.enableruby = enableruby
+        self.utilplist = utilplist
+        self.hdiutil = '/usr/bin/hdiutil'
 
 
     # Make the provided NetInstall.dmg r/w by mounting it with a shadow file
@@ -837,9 +837,20 @@ class processNBI(object):
             rcdotinstallro.close()
             rcdotinstallw = open(rcdotinstallpath, "w")
             for line in rcdotinstalllines:
-                if line.rstrip() != "/System/Library/CoreServices/Installer\ Progress.app/Contents/MacOS/Installer\ Progress &":
+                if line.rstrip() != '/System/Library/CoreServices/\
+                                     Installer\ Progress.app/Contents/MacOS/\
+                                     Installer\ Progress &':
                     rcdotinstallw.write(line)
             rcdotinstallw.close()
+
+            # Reports of slow NetBoot speeds with 10.11 have lead others to
+            #   remove various launch items that seem to cause this. Remove some
+            #   of those as a stab at speeding things back up.
+            baseldpath = os.path.join(basesystemmountpoint, '/System/Library/LaunchDaemons')
+            shutil.unlink(os.path.join(baseldpath, 'com.apple.locationd.plist'))
+            shutil.unlink(os.path.join(baseldpath, 'com.apple.lsd.plist'))
+            shutil.unlink(os.path.join(baseldpath, 'com.apple.tccd.system.plist'))
+            shutil.unlink(os.path.join(baseldpath, 'com.apple.ocspd.plist'))
 
         # Handle any custom content to be added, customfolder has a value
         if self.customfolder is not None:
@@ -1117,7 +1128,7 @@ def main():
 
     # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are true
     addcustom = len(customfolder) > 0
-    modifynbi = (addcustom or addpython or addruby)
+    modifynbi = (addcustom or addpython or addruby or isElCap)
 
     # Spin up a tmp dir for mounting
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
