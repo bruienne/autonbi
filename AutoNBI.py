@@ -71,6 +71,8 @@
 #
 # To replace "Packages" on the NBI boot volume with a custom version:
 #   ./AutoNBI -s ~/InstallESD.dmg -d ~/BuildRoot -n Mavericks -f Packages -a
+# pylint: disable=line-too-long, C0326, C0330
+
 
 import os
 import sys
@@ -847,10 +849,10 @@ class processNBI(object):
             #   remove various launch items that seem to cause this. Remove some
             #   of those as a stab at speeding things back up.
             baseldpath = os.path.join(basesystemmountpoint, '/System/Library/LaunchDaemons')
-            shutil.unlink(os.path.join(baseldpath, 'com.apple.locationd.plist'))
-            shutil.unlink(os.path.join(baseldpath, 'com.apple.lsd.plist'))
-            shutil.unlink(os.path.join(baseldpath, 'com.apple.tccd.system.plist'))
-            shutil.unlink(os.path.join(baseldpath, 'com.apple.ocspd.plist'))
+            os.unlink(os.path.join(baseldpath, 'com.apple.locationd.plist'))
+            os.unlink(os.path.join(baseldpath, 'com.apple.lsd.plist'))
+            os.unlink(os.path.join(baseldpath, 'com.apple.tccd.system.plist'))
+            os.unlink(os.path.join(baseldpath, 'com.apple.ocspd.plist'))
 
         # Handle any custom content to be added, customfolder has a value
         if self.customfolder is not None:
