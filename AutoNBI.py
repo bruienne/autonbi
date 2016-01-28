@@ -71,8 +71,6 @@
 #
 # To replace "Packages" on the NBI boot volume with a custom version:
 #   ./AutoNBI -s ~/InstallESD.dmg -d ~/BuildRoot -n Mavericks -f Packages -a
-# pylint: disable=line-too-long, C0326, C0330
-
 
 import os
 import sys
@@ -565,12 +563,12 @@ class processNBI(object):
 
     # Don't think we need this.
     def __init__(self, customfolder = None, enablepython=False, enableruby=False, utilplist=False):
-        super(processNBI, self).__init__()
-        self.customfolder = customfolder
-        self.enablepython = enablepython
-        self.enableruby = enableruby
-        self.utilplist = utilplist
-        self.hdiutil = '/usr/bin/hdiutil'
+         super(processNBI, self).__init__()
+         self.customfolder = customfolder
+         self.enablepython = enablepython
+         self.enableruby = enableruby
+         self.utilplist = utilplist
+         self.hdiutil = '/usr/bin/hdiutil'
 
 
     # Make the provided NetInstall.dmg r/w by mounting it with a shadow file
@@ -839,9 +837,7 @@ class processNBI(object):
             rcdotinstallro.close()
             rcdotinstallw = open(rcdotinstallpath, "w")
             for line in rcdotinstalllines:
-                if line.rstrip() != '/System/Library/CoreServices/\
-                                     Installer\ Progress.app/Contents/MacOS/\
-                                     Installer\ Progress &':
+                if line.rstrip() != "/System/Library/CoreServices/Installer\ Progress.app/Contents/MacOS/Installer\ Progress &":
                     rcdotinstallw.write(line)
             rcdotinstallw.close()
 
