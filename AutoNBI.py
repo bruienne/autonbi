@@ -841,6 +841,15 @@ class processNBI(object):
                     rcdotinstallw.write(line)
             rcdotinstallw.close()
 
+            # Reports of slow NetBoot speeds with 10.11 have lead others to
+            #   remove various launch items that seem to cause this. Remove some
+            #   of those as a stab at speeding things back up.
+            baseldpath = os.path.join(basesystemmountpoint, 'System/Library/LaunchDaemons')
+            os.unlink(os.path.join(baseldpath, 'com.apple.locationd.plist'))
+            os.unlink(os.path.join(baseldpath, 'com.apple.lsd.plist'))
+            os.unlink(os.path.join(baseldpath, 'com.apple.tccd.system.plist'))
+            os.unlink(os.path.join(baseldpath, 'com.apple.ocspd.plist'))
+
         # Handle any custom content to be added, customfolder has a value
         if self.customfolder is not None:
             print("-------------------------------------------------------------------------")
@@ -1117,7 +1126,7 @@ def main():
 
     # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are true
     addcustom = len(customfolder) > 0
-    modifynbi = (addcustom or addpython or addruby)
+    modifynbi = (addcustom or addpython or addruby or isElCap)
 
     # Spin up a tmp dir for mounting
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
