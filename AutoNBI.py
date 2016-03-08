@@ -72,6 +72,8 @@
 # To replace "Packages" on the NBI boot volume with a custom version:
 #   ./AutoNBI -s ~/InstallESD.dmg -d ~/BuildRoot -n Mavericks -f Packages -a
 
+# pylint: disable=line-too-long, C0103, C0326, C0330, C0325, W0612
+
 import os
 import sys
 import tempfile
@@ -91,6 +93,9 @@ import FoundationPlist
 from xml.parsers.expat import ExpatError
 
 def _get_mac_ver():
+    """
+    Gets complete version string of OS X host
+    """
     import subprocess
     p = subprocess.Popen(['sw_vers', '-productVersion'], stdout=subprocess.PIPE)
     stdout, stderr = p.communicate()
@@ -174,6 +179,7 @@ def unmountdmg(mountpoint):
         if retcode:
             print >> sys.stderr, 'Failed to unmount %s' % mountpoint
 
+    return True
 #  Above code from COSXIP by Greg Neagle
 
 def convertdmg(dmgpath, nbishadow):
@@ -435,6 +441,9 @@ def prepworkdir(workdir):
 # Decompresses a xz compressed file from the first input file path to the second output file path
 
 class lzma_stream(Structure):
+    """
+    Class definition for processing lzma streams as part of xz compression
+    """
     _fields_ = [
         ("next_in",        c_void_p),
         ("avail_in",       c_size_t),
@@ -563,12 +572,12 @@ class processNBI(object):
 
     # Don't think we need this.
     def __init__(self, customfolder = None, enablepython=False, enableruby=False, utilplist=False):
-         super(processNBI, self).__init__()
-         self.customfolder = customfolder
-         self.enablepython = enablepython
-         self.enableruby = enableruby
-         self.utilplist = utilplist
-         self.hdiutil = '/usr/bin/hdiutil'
+        super(processNBI, self).__init__()
+        self.customfolder = customfolder
+        self.enablepython = enablepython
+        self.enableruby = enableruby
+        self.utilplist = utilplist
+        self.hdiutil = '/usr/bin/hdiutil'
 
 
     # Make the provided NetInstall.dmg r/w by mounting it with a shadow file
@@ -837,7 +846,7 @@ class processNBI(object):
             rcdotinstallro.close()
             rcdotinstallw = open(rcdotinstallpath, "w")
             for line in rcdotinstalllines:
-                if line.rstrip() != "/System/Library/CoreServices/Installer\ Progress.app/Contents/MacOS/Installer\ Progress &":
+                if line.rstrip() != r"/System/Library/CoreServices/Installer\ Progress.app/Contents/MacOS/Installer\ Progress &":
                     rcdotinstallw.write(line)
             rcdotinstallw.close()
 
@@ -946,7 +955,7 @@ class processNBI(object):
 
             # Done adding frameworks to BaseSystem, unmount and convert
             # detachresult = self.runcmd(self.dmgdetach(basesystemmountpoint))
-            detachresult = unmountdmg(basesystemmountpoint)
+            unmountdmg(basesystemmountpoint)
 
             # Set some DMG conversion targets for later
             basesystemrw = os.path.join(TMPDIR, 'BaseSystemRW.dmg')
@@ -1036,7 +1045,7 @@ def main():
              '    Run non-interactively, use the Yosemite installer as source,\n'
              '    replace Packages folder, enable the NBI, use index 6667 and\n'
              '    enable support for MacBookPro12,1 models only:\n'
-             '    $ ./AutoNBI.py --source /Applications/Install\ OS\ X\ Yosemite.app\n'
+             r'    $ ./AutoNBI.py --source /Applications/Install\ OS\ X\ Yosemite.app\n'
              '                   --destination /tmp \\\n'
              '                   --name Imagr \\\n'
              '                   --folder Packages \\\n'
