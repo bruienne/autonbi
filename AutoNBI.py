@@ -951,9 +951,9 @@ class processNBI(object):
             print("-------------------------------------------------------------------------")
             print("Adding /etc/rc.netboot to BaseOS.dmg to enable RAM disk at /tmp")
             try:
-                shutil.copyfile('rc.netboot',
-                                os.path.join(basesystemmountpoint,
-                                'etc/rc.netboot'))
+                shutil.copy('rc.netboot',
+                            os.path.join(basesystemmountpoint,
+                            'etc/rc.netboot'))
             except:
                 print("Failed copying rc.netboot into place!")
 
