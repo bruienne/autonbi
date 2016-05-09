@@ -90,6 +90,8 @@ sys.path.append("/usr/local/munki/munkilib")
 import FoundationPlist
 from xml.parsers.expat import ExpatError
 
+# pylint: disable-msg=C0301,C0326,C0330,C0325,C0103,W0201,R0201
+
 def _get_mac_ver():
     import subprocess
     p = subprocess.Popen(['sw_vers', '-productVersion'], stdout=subprocess.PIPE)
@@ -563,12 +565,12 @@ class processNBI(object):
 
     # Don't think we need this.
     def __init__(self, customfolder = None, enablepython=False, enableruby=False, utilplist=False):
-         super(processNBI, self).__init__()
-         self.customfolder = customfolder
-         self.enablepython = enablepython
-         self.enableruby = enableruby
-         self.utilplist = utilplist
-         self.hdiutil = '/usr/bin/hdiutil'
+        super(processNBI, self).__init__()
+        self.customfolder = customfolder
+        self.enablepython = enablepython
+        self.enableruby = enableruby
+        self.utilplist = utilplist
+        self.hdiutil = '/usr/bin/hdiutil'
 
 
     # Make the provided NetInstall.dmg r/w by mounting it with a shadow file
@@ -809,7 +811,8 @@ class processNBI(object):
                        }
         # Set 'modifybasesystem' if any frameworks are to be added, we're building
         #   an ElCap NBI or if we're adding a custom Utilites plist
-        modifybasesystem = (len(addframeworks) > 0 or isElCap or self.utilplist)
+        modifybasesystem = (len(addframeworks) > 0 or isElCap or self.utilplist
+                            or createtempramdisk)
 
         # If we need to make modifications to BaseSystem.dmg we mount it r/w
         if modifybasesystem:
@@ -941,6 +944,18 @@ class processNBI(object):
                                 'System/Installation/CDIS/OS X Utilities.app/Contents/Resources/Utilities.plist'))
             except:
                 print("Failed to add custom Utilites plist from %s" % self.utilplist)
+
+        # Copy a custom rc.netboot if --ramdisk was passed, this enables a writable
+        #   /tmp directory, based on available memory on the host. Keep it simple.
+        if createtempramdisk:
+            print("-------------------------------------------------------------------------")
+            print("Adding /etc/rc.netboot to BaseOS.dmg to enable RAM disk at /tmp")
+            try:
+                shutil.copyfile('rc.netboot',
+                                os.path.join(basesystemmountpoint,
+                                'etc/rc.netboot'))
+            except:
+                print("Failed copying rc.netboot into place!")
 
         if modifybasesystem and basesystemmountpoint:
 
@@ -1075,6 +1090,8 @@ def main():
                       help='Optional. Set a custom Index for the NBI. Default is 5000.')
     parser.add_option('--type', default='NFS', dest='nbitype',
                       help='Optional. Set a custom Type for the NBI. HTTP or NFS. Default is NFS.')
+    parser.add_option('--ramdisk', default=False, dest='createtempramdisk', action='store_true',
+                      help='Optional. Create a RAM disk at /tmp. Default is false.')
     parser.add_option('--sysid-enable', dest='sysidenabled', action='append', type='str',
                       help='Optional. Whitelist a given System ID (\'MacBookPro10,1\') Can be '
                            'defined multiple times. WARNING: This will enable ONLY the listed '
@@ -1120,13 +1137,15 @@ def main():
     isdefault = options.isdefault
     nbiindex = options.nbiindex
     nbitype = options.nbitype
+    createtempramdisk = options.createtempramdisk
+
     if options.sysidenabled:
         sysidenabled = options.sysidenabled
         print('Enabling System IDs: %s' % sysidenabled)
 
     # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are true
     addcustom = len(customfolder) > 0
-    modifynbi = (addcustom or addpython or addruby or isElCap)
+    modifynbi = (addcustom or addpython or addruby or isElCap or createtempramdisk)
 
     # Spin up a tmp dir for mounting
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
