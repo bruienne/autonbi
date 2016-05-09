@@ -1001,6 +1001,7 @@ class processNBI(object):
 TMPDIR = None
 sysidenabled = []
 isElCap = False
+createtempramdisk = False
 
 if LooseVersion(_get_mac_ver()) >= "10.11":
     BUILDEXECPATH = ('/System/Library/PrivateFrameworks/SIUFoundation.framework/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
@@ -1017,6 +1018,7 @@ def main():
 
     global TMPDIR
     global sysidenabled
+    global createtempramdisk
 
     # TBD - Full usage text
     usage = ('Usage: %prog --source/-s <path>\n'
@@ -1090,7 +1092,7 @@ def main():
                       help='Optional. Set a custom Index for the NBI. Default is 5000.')
     parser.add_option('--type', default='NFS', dest='nbitype',
                       help='Optional. Set a custom Type for the NBI. HTTP or NFS. Default is NFS.')
-    parser.add_option('--ramdisk', default=False, dest='createtempramdisk', action='store_true',
+    parser.add_option('--ramdisk', default=False, dest='ramdisk', action='store_true',
                       help='Optional. Create a RAM disk at /tmp. Default is false.')
     parser.add_option('--sysid-enable', dest='sysidenabled', action='append', type='str',
                       help='Optional. Whitelist a given System ID (\'MacBookPro10,1\') Can be '
@@ -1137,7 +1139,7 @@ def main():
     isdefault = options.isdefault
     nbiindex = options.nbiindex
     nbitype = options.nbitype
-    createtempramdisk = options.createtempramdisk
+    createtempramdisk = options.ramdisk
 
     if options.sysidenabled:
         sysidenabled = options.sysidenabled
