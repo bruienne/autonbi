@@ -35,10 +35,10 @@
 #   -LOCAL_ONLY-	Only use the local drive for the shadow, fail if
 #			not available
 
-NETBOOT_MOUNT=/tmp
+NETBOOT_MOUNT=/var/run
 
 # Change to "-LOCAL_ONLY-" to use RAM Disk instead of network
-NETBOOT_SHADOW=-LOCAL_ONLY-
+NETBOOT_SHADOW="-LOCAL_ONLY-"
 
 # NETBOOT_SHADOW=${NETBOOT_SHADOW:-NETWORK-}
 # There is a bug in the default variable assignment, it loses the the beginning "-"
