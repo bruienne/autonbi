@@ -953,7 +953,7 @@ class processNBI(object):
             try:
                 shutil.copy('rc.netboot',
                             os.path.join(basesystemmountpoint,
-                            'etc/rc.netboot'))
+                            'private/etc/rc.netboot'))
             except:
                 print("Failed copying rc.netboot into place!")
 
