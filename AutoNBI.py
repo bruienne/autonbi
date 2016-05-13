@@ -949,13 +949,14 @@ class processNBI(object):
         #   /tmp directory, based on available memory on the host. Keep it simple.
         if createtempramdisk:
             print("-------------------------------------------------------------------------")
-            print("Adding /etc/rc.netboot to BaseOS.dmg to enable RAM disk at /tmp")
+            print("Adding /private/etc/rc.netboot to BaseOS.dmg to enable RAM disk at /private/tmp")
             try:
-                shutil.copy('rc.netboot',
+                absdir = os.path.dirname(__file__)
+                shutil.copy(os.path.join(absdir,'rc.netboot'),
                             os.path.join(basesystemmountpoint,
                             'private/etc/rc.netboot'))
-            except:
-                print("Failed copying rc.netboot into place!")
+            except IOError as e:
+                print("Failed copying rc.netboot into place: %s" % e)
 
         if modifybasesystem and basesystemmountpoint:
 
