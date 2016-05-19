@@ -845,11 +845,15 @@ class processNBI(object):
             #   remove various launch items that seem to cause this. Remove some
             #   of those as a stab at speeding things back up.
             baseldpath = os.path.join(basesystemmountpoint, 'System/Library/LaunchDaemons')
-            os.unlink(os.path.join(baseldpath, 'com.apple.locationd.plist'))
-            os.unlink(os.path.join(baseldpath, 'com.apple.lsd.plist'))
-            os.unlink(os.path.join(baseldpath, 'com.apple.tccd.system.plist'))
-            os.unlink(os.path.join(baseldpath, 'com.apple.ocspd.plist'))
+            launchdaemonstoremove = ['com.apple.locationd.plist',
+                                     'com.apple.lsd.plist',
+                                     'com.apple.tccd.system.plist',
+                                     'com.apple.ocspd.plist']
 
+            for ld in launchdaemonstoremove:
+                ldfullpath = os.path.join(baseldpath, ld)
+                if os.path.exists(ldfullpath):
+                    os.unlink(ldfullpath)
         # Handle any custom content to be added, customfolder has a value
         if self.customfolder is not None:
             print("-------------------------------------------------------------------------")
