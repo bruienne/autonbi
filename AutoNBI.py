@@ -793,7 +793,15 @@ class processNBI(object):
             addframeworks.append('ruby')
 
         # Define the needed source PKGs for our frameworks
-        if isElCap:
+        if isSierra:
+            # In ElCap pretty much everything is in Essentials.
+            # We also need to add libssl as it's no longer standard.
+            payloads = { 'python': {'sourcepayloads': ['Essentials'],
+                                    'regex': '\"*Py*\" \"*py*\" \"*libssl*\" \"*libffi.dylib*\" \"*libexpat*\"'},
+                         'ruby': {'sourcepayloads': ['Essentials'],
+                                  'regex': '\"*ruby*\" \"*lib*ruby*\" \"*Ruby.framework*\"  \"*libssl*\"'}
+                       }
+        elif isElCap:
             # In ElCap pretty much everything is in Essentials.
             # We also need to add libssl as it's no longer standard.
             payloads = { 'python': {'sourcepayloads': ['Essentials'],
@@ -830,6 +838,26 @@ class processNBI(object):
         # OS X 10.11 El Capitan triggers an Installer Progress app which causes
         #   custom installer workflows using 'Packages/Extras' to fail so
         #   we need to nix it. Thanks, Apple.
+        if isSierra:
+            rcdotinstallpath = os.path.join(basesystemmountpoint, 'private/etc/rc.install')
+            rcdotinstallro = open(rcdotinstallpath, "r")
+            rcdotinstalllines = rcdotinstallro.readlines()
+            rcdotinstallro.close()
+            rcdotinstallw = open(rcdotinstallpath, "w")
+
+            # The binary changed to launchprogresswindow for Sierra, still killing it.
+            for line in rcdotinstalllines:
+                if line.rstrip() != "/System/Installation/CDIS/launchprogresswindow &":
+                    rcdotinstallw.write(line)
+                # Sierra also really wants to launch the Language Chooser which kicks off various install methods.
+                # This can mess with some third party imaging tools (Imagr) so we simply change it to 'echo'
+                #   so it simply echoes the args Language Chooser would be called with instead of launching LC and nothing else.
+                if line.rstrip() != "LAUNCH=\"/System/Library/CoreServices/Language Chooser.app/Contents/MacOS/Language Chooser\"":
+                    rcdotinstallw.write(line)
+                else:
+                    rcdotinstallw.write("LAUNCH=/bin/echo")
+            rcdotinstallw.close()
+
         if isElCap:
             rcdotinstallpath = os.path.join(basesystemmountpoint, 'private/etc/rc.install')
             rcdotinstallro = open(rcdotinstallpath, "r")
@@ -841,7 +869,8 @@ class processNBI(object):
                     rcdotinstallw.write(line)
             rcdotinstallw.close()
 
-            # Reports of slow NetBoot speeds with 10.11 have lead others to
+        if isElCap or isSierra:
+            # Reports of slow NetBoot speeds with 10.11+ have lead others to
             #   remove various launch items that seem to cause this. Remove some
             #   of those as a stab at speeding things back up.
             baseldpath = os.path.join(basesystemmountpoint, 'System/Library/LaunchDaemons')
@@ -990,8 +1019,11 @@ class processNBI(object):
 TMPDIR = None
 sysidenabled = []
 isElCap = False
+isSierra = False
 
-if LooseVersion(_get_mac_ver()) >= "10.11":
+if LooseVersion(_get_mac_ver()) >= "10.12":
+    isSierra = True
+elif LooseVersion(_get_mac_ver()) >= "10.11":
     BUILDEXECPATH = ('/System/Library/PrivateFrameworks/SIUFoundation.framework/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
     isElCap = True
 elif LooseVersion(_get_mac_ver()) < "10.10":
@@ -1021,7 +1053,7 @@ def main():
              '                   [--add-python/-p]\n'
              '                   [--add-ruby/-r]\n'
              '                   [--utilities-plist]\n\n'
-             '    %prog creates an OS X 10.7, 10.8, 10.9, 10.10 or 10.11\n'
+             '    %prog creates an OS X 10.7, 10.8, 10.9, 10.10, 10.11 or 10.12\n'
              '    NetInstall NBI ready for use with a NetBoot server.\n\n'
              '    The NBI target OS X version must match that of the host OS.\n\n'
              '    An option to modify the NBI\'s NetInstall.dmg is also provided\n'
@@ -1130,7 +1162,7 @@ def main():
 
     # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are true
     addcustom = len(customfolder) > 0
-    modifynbi = (addcustom or addpython or addruby or isElCap)
+    modifynbi = (addcustom or addpython or addruby or isElCap or isSiera)
 
     # Spin up a tmp dir for mounting
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
