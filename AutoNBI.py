@@ -1022,6 +1022,7 @@ isElCap = False
 isSierra = False
 
 if LooseVersion(_get_mac_ver()) >= "10.12":
+    BUILDEXECPATH = ('/System/Library/PrivateFrameworks/SIUFoundation.framework/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
     isSierra = True
 elif LooseVersion(_get_mac_ver()) >= "10.11":
     BUILDEXECPATH = ('/System/Library/PrivateFrameworks/SIUFoundation.framework/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
