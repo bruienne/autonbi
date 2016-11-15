@@ -817,7 +817,7 @@ class processNBI(object):
                        }
         # Set 'modifybasesystem' if any frameworks are to be added, we're building
         #   an ElCap NBI or if we're adding a custom Utilites plist
-        modifybasesystem = (len(addframeworks) > 0 or isElCap or self.utilplist)
+        modifybasesystem = (len(addframeworks) > 0 or isElCap or isSierra or self.utilplist)
 
         # If we need to make modifications to BaseSystem.dmg we mount it r/w
         if modifybasesystem:
