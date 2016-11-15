@@ -847,15 +847,15 @@ class processNBI(object):
 
             # The binary changed to launchprogresswindow for Sierra, still killing it.
             for line in rcdotinstalllines:
-                if line.rstrip() != "/System/Installation/CDIS/launchprogresswindow &":
-                    rcdotinstallw.write(line)
+                if line.rstrip() == "/System/Installation/CDIS/launchprogresswindow &":
+                    rcdotinstallw.write("")
                 # Sierra also really wants to launch the Language Chooser which kicks off various install methods.
                 # This can mess with some third party imaging tools (Imagr) so we simply change it to 'echo'
                 #   so it simply echoes the args Language Chooser would be called with instead of launching LC and nothing else.
-                if line.rstrip() != "LAUNCH=\"/System/Library/CoreServices/Language Chooser.app/Contents/MacOS/Language Chooser\"":
-                    rcdotinstallw.write(line)
-                else:
+                elif line.rstrip() == "LAUNCH=\"/System/Library/CoreServices/Language Chooser.app/Contents/MacOS/Language Chooser\"":
                     rcdotinstallw.write("LAUNCH=/bin/echo")
+                else:
+                    rcdotinstallw.write(line)
             rcdotinstallw.close()
 
         if isElCap:
