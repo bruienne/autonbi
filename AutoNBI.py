@@ -854,6 +854,8 @@ class processNBI(object):
                 #   so it simply echoes the args Language Chooser would be called with instead of launching LC and nothing else.
                 elif line.rstrip() == "LAUNCH=\"/System/Library/CoreServices/Language Chooser.app/Contents/MacOS/Language Chooser\"":
                     rcdotinstallw.write("LAUNCH=/bin/echo")
+                    # Add back ElCap code to source system imaging extras files
+                    rcdotinstallw.write("\nif [ -x /System/Installation/Packages/Extras/rc.imaging ]; then\n\t/System/Installation/Packages/Extras/rc.imaging\nfi")
                 else:
                     rcdotinstallw.write(line)
             rcdotinstallw.close()
