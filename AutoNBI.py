@@ -817,7 +817,7 @@ class processNBI(object):
                        }
         # Set 'modifybasesystem' if any frameworks are to be added, we're building
         #   an ElCap NBI or if we're adding a custom Utilites plist
-        modifybasesystem = (len(addframeworks) > 0 or isElCap or self.utilplist)
+        modifybasesystem = (len(addframeworks) > 0 or isElCap or isSierra or self.utilplist)
 
         # If we need to make modifications to BaseSystem.dmg we mount it r/w
         if modifybasesystem:
@@ -855,6 +855,8 @@ class processNBI(object):
                     # Rewrite $LAUNCH as /bin/echo
                     if line.rstrip() == "LAUNCH=\"/System/Library/CoreServices/Language Chooser.app/Contents/MacOS/Language Chooser\"":
                         rcdotinstallw.write("LAUNCH=/bin/echo")
+                        # Add back ElCap code to source system imaging extras files
+                        rcdotinstallw.write("\nif [ -x /System/Installation/Packages/Extras/rc.imaging ]; then\n\t/System/Installation/Packages/Extras/rc.imaging\nfi")
                     else:
                         rcdotinstallw.write(line)
 
@@ -1165,7 +1167,7 @@ def main():
 
     # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are true
     addcustom = len(customfolder) > 0
-    modifynbi = (addcustom or addpython or addruby or isElCap or isSiera)
+    modifynbi = (addcustom or addpython or addruby or isElCap or isSierra)
 
     # Spin up a tmp dir for mounting
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
