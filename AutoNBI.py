@@ -1167,7 +1167,7 @@ def main():
 
     # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are true
     addcustom = len(customfolder) > 0
-    modifynbi = (addcustom or addpython or addruby or isElCap or isSiera)
+    modifynbi = (addcustom or addpython or addruby or isElCap or isSierra)
 
     # Spin up a tmp dir for mounting
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
