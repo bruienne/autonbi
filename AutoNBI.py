@@ -846,18 +846,20 @@ class processNBI(object):
             rcdotinstallw = open(rcdotinstallpath, "w")
 
             # The binary changed to launchprogresswindow for Sierra, still killing it.
+            # Sierra also really wants to launch the Language Chooser which kicks off various install methods.
+            # This can mess with some third party imaging tools (Imagr) so we simply change it to 'echo'
+            #   so it simply echoes the args Language Chooser would be called with instead of launching LC, and nothing else.
             for line in rcdotinstalllines:
-                if line.rstrip() == "/System/Installation/CDIS/launchprogresswindow &":
-                    rcdotinstallw.write("")
-                # Sierra also really wants to launch the Language Chooser which kicks off various install methods.
-                # This can mess with some third party imaging tools (Imagr) so we simply change it to 'echo'
-                #   so it simply echoes the args Language Chooser would be called with instead of launching LC and nothing else.
-                elif line.rstrip() == "LAUNCH=\"/System/Library/CoreServices/Language Chooser.app/Contents/MacOS/Language Chooser\"":
-                    rcdotinstallw.write("LAUNCH=/bin/echo")
-                    # Add back ElCap code to source system imaging extras files
-                    rcdotinstallw.write("\nif [ -x /System/Installation/Packages/Extras/rc.imaging ]; then\n\t/System/Installation/Packages/Extras/rc.imaging\nfi")
-                else:
-                    rcdotinstallw.write(line)
+                # Remove launchprogresswindow
+                if line.rstrip() != "/System/Installation/CDIS/launchprogresswindow &":
+                    # Rewrite $LAUNCH as /bin/echo
+                    if line.rstrip() == "LAUNCH=\"/System/Library/CoreServices/Language Chooser.app/Contents/MacOS/Language Chooser\"":
+                        rcdotinstallw.write("LAUNCH=/bin/echo")
+                        # Add back ElCap code to source system imaging extras files
+                        rcdotinstallw.write("\nif [ -x /System/Installation/Packages/Extras/rc.imaging ]; then\n\t/System/Installation/Packages/Extras/rc.imaging\nfi")
+                    else:
+                        rcdotinstallw.write(line)
+
             rcdotinstallw.close()
 
         if isElCap:
