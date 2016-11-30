@@ -888,7 +888,7 @@ class processNBI(object):
                 if os.path.exists(ldfullpath):
                     os.unlink(ldfullpath)
         # Handle any custom content to be added, customfolder has a value
-        if self.customfolder is not None:
+        if self.customfolder:
             print("-------------------------------------------------------------------------")
             print "Modifying NetBoot volume at %s" % nbimount
 
