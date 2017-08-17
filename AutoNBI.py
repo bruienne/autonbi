@@ -1260,9 +1260,9 @@ def main():
             osversion, osbuild, unused = getosversioninfo(os.path.join(root, 'Contents/SharedSupport'))
 
         if not isSierra or not isHighSierra:
-            description = "OS X %s - %s" % osversion, osbuild
+            description = "OS X %s - %s" % (osversion, osbuild)
         else:
-            description = "macOS %s - %s" % osversion, osbuild
+            description = "macOS %s - %s" % (osversion, osbuild)
 
         # Prep our build root for NBI creation
         print 'Prepping ' + destination + ' with source mounted at ' + mount
