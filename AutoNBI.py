@@ -806,7 +806,16 @@ class processNBI(object):
             addframeworks.append('ruby')
 
         # Define the needed source PKGs for our frameworks
-        if isSierra or isHighSierra:
+        if isHighSierra:
+            # In High Sierra pretty much everything is in Core. New name. Same contents.
+            # We also need to add libssl as it's no longer standard.
+            payloads = { 'python': {'sourcepayloads': ['Core'],
+                                    'regex': '\"*Py*\" \"*py*\" \"*libssl*\" \"*libffi.dylib*\" \"*libexpat*\"'},
+                         'ruby': {'sourcepayloads': ['Core'],
+                                  'regex': '\"*ruby*\" \"*lib*ruby*\" \"*Ruby.framework*\"  \"*libssl*\"'}
+                       }
+
+        elif isSierra:
             # In Sierra pretty much everything is in Essentials.
             # We also need to add libssl as it's no longer standard.
             payloads = { 'python': {'sourcepayloads': ['Essentials'],
