@@ -198,17 +198,16 @@ def convertdmg(dmgpath, nbishadow):
     # Return the name of the converted DMG back to the caller
     return dmgfinal + '.sparseimage'
 
-def createdmg(sourcepath, dmgmount, targetpath=None):
+def createdmg(sourcepath, dmgmount):
     """
         Creates a dmg from a given source path (sourcepath) (e.g. to replace InstallESD.dmg)
         at a specified location (dmgmount)
     """
 
-    # Create our DMG destination path
-    destintationpath = os.path.join(dmgmount, targetpath)
+    targetpath = os.path.join(dmgmount, 'InstallESD')
 
     # Create an image named 'InstallESD' with the given custom folder
-    cmd = ['/usr/bin/hdiutil', 'create', 'InstallESD', '-megabytes',
+    cmd = ['/usr/bin/hdiutil', 'create', targetpath, '-megabytes',
     '500', '-volname', 'InstallESD', '-uid', '0', '-gid', '80', '-mode', '1775',
     '-layout', 'SPUD', '-fs', 'JHFS+', '-srcfolder', sourcepath]
 
@@ -961,9 +960,15 @@ class processNBI(object):
 
             # Copy over the custom folder contents. If the folder didn't exists
             # we can skip the above removal and get straight to copying.
-            os.mkdir(processdir)
-            print('Copying ' + self.customfolder + ' to ' + processdir + '...')
-            distutils.dir_util.copy_tree(self.customfolder, processdir)
+            if not isHighSierra:
+                os.mkdir(processdir)
+                print('Copying ' + self.customfolder + ' to ' + processdir + '...')
+                distutils.dir_util.copy_tree(self.customfolder, processdir)
+            else:
+                if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.dmg')):
+                    os.unlink(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.dmg'))
+                print('Creating DMG of' + self.customfolder + ' at ' + nbimount + '...')
+                createdmg(self.customfolder, os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport'))
 
         # Is Python or Ruby being added? If so, do the work.
         if addframeworks:
@@ -1059,9 +1064,19 @@ class processNBI(object):
             shutil.copyfile(basesystemro, basesystemdmg)
 
             # For High Sierra, remove the chunklists for InstallESD and BaseSystem since they won't match
+            # This includes removing chunklist entry from InstallInfo.plist
             if isHighSierra:
-                os.unlink(os.path.join(nbimount, 'BaseSystem.chunklist'))
-                os.unlink(os.path.join(nbimount, 'InstallESD.chunklist'))
+                if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/BaseSystem.chunklist')):
+                    os.unlink(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/BaseSystem.chunklist'))
+                if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.chunklist')):
+                    os.unlink(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.chunklist'))
+
+                installinfoplist = plistlib.readPlist(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallInfo.plist'))
+                if installinfoplist['System Image Info'].get('chunklistid'):
+                    del installinfoplist['System Image Info']['chunklistid']
+                if installinfoplist['System Image Info'].get('chunklistURL'):
+                    del installinfoplist['System Image Info']['chunklistURL']
+                plistlib.writePlist(installinfoplist, os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallInfo.plist'))
 
         # We're done, unmount the outer NBI DMG.
         unmountdmg(nbimount)
