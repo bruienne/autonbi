@@ -1060,8 +1060,8 @@ class processNBI(object):
 
             # For High Sierra, remove the chunklists for InstallESD and BaseSystem since they won't match
             if isHighSierra:
-                os.unlink(os.path.join(nbimount, 'BaseSystem.chunklist')
-                os.unlink(os.path.join(nbimount, 'InstallESD.chunklist')
+                os.unlink(os.path.join(nbimount, 'BaseSystem.chunklist'))
+                os.unlink(os.path.join(nbimount, 'InstallESD.chunklist'))
 
         # We're done, unmount the outer NBI DMG.
         unmountdmg(nbimount)
