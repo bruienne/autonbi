@@ -198,6 +198,27 @@ def convertdmg(dmgpath, nbishadow):
     # Return the name of the converted DMG back to the caller
     return dmgfinal + '.sparseimage'
 
+def createdmg(sourcepath, dmgmount, targetpath=None):
+    """
+        Creates a dmg from a given source path (sourcepath) (e.g. to replace InstallESD.dmg)
+        at a specified location (dmgmount)
+    """
+
+    # Create our DMG destination path
+    destintationpath = os.path.join(dmgmount, targetpath)
+
+    # Create an image named 'InstallESD' with the given custom folder
+    cmd = ['/usr/bin/hdiutil', 'create', 'InstallESD', '-megabytes',
+    '500', '-volname', 'InstallESD', '-uid', '0', '-gid', '80', '-mode', '1775',
+    '-layout', 'SPUD', '-fs', 'JHFS+', '-srcfolder', sourcepath]
+
+    proc = subprocess.Popen(cmd, bufsize=-1,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (unused, err) = proc.communicate()
+
+    # Got errors?
+    if proc.returncode:
+        print >> sys.stderr, 'Disk image creation failed: %s' % err
 
 def getosversioninfo(mountpoint):
     """"getosversioninfo will attempt to retrieve the OS X version and build
@@ -1036,6 +1057,10 @@ class processNBI(object):
 
             # Rename the finalized DMG to its intended name BaseSystem.dmg
             shutil.copyfile(basesystemro, basesystemdmg)
+
+            # For High Sierra, remove the chunklists for InstallESD and BaseSystem since they won't match
+            os.unlink(os.path.join(nbimount, 'BaseSystem.chunklist')
+            os.unlink(os.path.join(nbimount, 'InstallESD.chunklist')
 
         # We're done, unmount the outer NBI DMG.
         unmountdmg(nbimount)
