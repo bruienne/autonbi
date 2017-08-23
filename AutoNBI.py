@@ -889,7 +889,11 @@ class processNBI(object):
                     if line.rstrip() == "LAUNCH=\"/System/Library/CoreServices/Language Chooser.app/Contents/MacOS/Language Chooser\"":
                         rcdotinstallw.write("LAUNCH=/bin/echo")
                         # Add back ElCap code to source system imaging extras files
-                        rcdotinstallw.write("\nif [ -x /System/Installation/Packages/Extras/rc.imaging ]; then\n\t/System/Installation/Packages/Extras/rc.imaging\nfi")
+                        # For High Sierra, also kill Installer Progress
+                        if isHighSierra:
+                            rcdotinstallw.write("\nif [ -x /System/Installation/Packages/Extras/rc.imaging ]; then\n\tkill `ps -axwww | awk '/Installer Progress/ {print $1}'`\n\t/System/Installation/Packages/Extras/rc.imaging\nfi")
+                        else:
+                            rcdotinstallw.write("\nif [ -x /System/Installation/Packages/Extras/rc.imaging ]; then\n\t/System/Installation/Packages/Extras/rc.imaging\nfi")
                     else:
                         rcdotinstallw.write(line)
 
