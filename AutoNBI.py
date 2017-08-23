@@ -198,27 +198,6 @@ def convertdmg(dmgpath, nbishadow):
     # Return the name of the converted DMG back to the caller
     return dmgfinal + '.sparseimage'
 
-def createdmg(sourcepath, dmgmount):
-    """
-        Creates a dmg from a given source path (sourcepath) (e.g. to replace InstallESD.dmg)
-        at a specified location (dmgmount)
-    """
-
-    targetpath = os.path.join(dmgmount, 'InstallESD')
-
-    # Create an image named 'InstallESD' with the given custom folder
-    cmd = ['/usr/bin/hdiutil', 'create', targetpath, '-megabytes',
-    '500', '-volname', 'InstallESD', '-uid', '0', '-gid', '80', '-mode', '1775',
-    '-layout', 'SPUD', '-fs', 'JHFS+', '-srcfolder', sourcepath]
-
-    proc = subprocess.Popen(cmd, bufsize=-1,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    (unused, err) = proc.communicate()
-
-    # Got errors?
-    if proc.returncode:
-        print >> sys.stderr, 'Disk image creation failed: %s' % err
-
 def getosversioninfo(mountpoint):
     """"getosversioninfo will attempt to retrieve the OS X version and build
         from the given mount point by reading /S/L/CS/SystemVersion.plist
@@ -910,7 +889,11 @@ class processNBI(object):
                     if line.rstrip() == "LAUNCH=\"/System/Library/CoreServices/Language Chooser.app/Contents/MacOS/Language Chooser\"":
                         rcdotinstallw.write("LAUNCH=/bin/echo")
                         # Add back ElCap code to source system imaging extras files
-                        rcdotinstallw.write("\nif [ -x /System/Installation/Packages/Extras/rc.imaging ]; then\n\t/System/Installation/Packages/Extras/rc.imaging\nfi")
+                        # For High Sierra, also kill Installer Progress
+                        if isHighSierra:
+                            rcdotinstallw.write("\nif [ -x /System/Installation/Packages/Extras/rc.imaging ]; then\n\tkill `ps -axwww | awk '/Installer Progress/ {print $1}'`\n\t/System/Installation/Packages/Extras/rc.imaging\nfi")
+                        else:
+                            rcdotinstallw.write("\nif [ -x /System/Installation/Packages/Extras/rc.imaging ]; then\n\t/System/Installation/Packages/Extras/rc.imaging\nfi")
                     else:
                         rcdotinstallw.write(line)
 
@@ -960,15 +943,12 @@ class processNBI(object):
 
             # Copy over the custom folder contents. If the folder didn't exists
             # we can skip the above removal and get straight to copying.
-            if not isHighSierra:
-                os.mkdir(processdir)
-                print('Copying ' + self.customfolder + ' to ' + processdir + '...')
-                distutils.dir_util.copy_tree(self.customfolder, processdir)
-            else:
+            os.mkdir(processdir)
+            print('Copying ' + self.customfolder + ' to ' + processdir + '...')
+            distutils.dir_util.copy_tree(self.customfolder, processdir)
+            if isHighSierra:
                 if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.dmg')):
                     os.unlink(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.dmg'))
-                print('Creating DMG of' + self.customfolder + ' at ' + nbimount + '...')
-                createdmg(self.customfolder, os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport'))
 
         # Is Python or Ruby being added? If so, do the work.
         if addframeworks:
