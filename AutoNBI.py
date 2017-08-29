@@ -655,7 +655,7 @@ class processNBI(object):
     def cpioextract(self, cpio_archive, pattern):
         return [ '/usr/bin/cpio -idmu --quiet -I %s %s' % (cpio_archive, pattern) ]
     def xzextract(self, xzexec, xzfile):
-        return ['/usr/local/bin/xz -d %s' % xzfile]
+        return ['%s -d %s' % (xzexec, xzfile)]
     def getfiletype(self, filepath):
         return ['/usr/bin/file', filepath]
 
