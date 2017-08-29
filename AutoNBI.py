@@ -198,27 +198,6 @@ def convertdmg(dmgpath, nbishadow):
     # Return the name of the converted DMG back to the caller
     return dmgfinal + '.sparseimage'
 
-def createdmg(sourcepath, dmgmount):
-    """
-        Creates a dmg from a given source path (sourcepath) (e.g. to replace InstallESD.dmg)
-        at a specified location (dmgmount)
-    """
-
-    targetpath = os.path.join(dmgmount, 'InstallESD')
-
-    # Create an image named 'InstallESD' with the given custom folder
-    cmd = ['/usr/bin/hdiutil', 'create', targetpath, '-megabytes',
-    '500', '-volname', 'InstallESD', '-uid', '0', '-gid', '80', '-mode', '1775',
-    '-layout', 'SPUD', '-fs', 'JHFS+', '-srcfolder', sourcepath]
-
-    proc = subprocess.Popen(cmd, bufsize=-1,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    (unused, err) = proc.communicate()
-
-    # Got errors?
-    if proc.returncode:
-        print >> sys.stderr, 'Disk image creation failed: %s' % err
-
 def getosversioninfo(mountpoint):
     """"getosversioninfo will attempt to retrieve the OS X version and build
         from the given mount point by reading /S/L/CS/SystemVersion.plist
@@ -935,7 +914,8 @@ class processNBI(object):
             launchdaemonstoremove = ['com.apple.locationd.plist',
                                      'com.apple.lsd.plist',
                                      'com.apple.tccd.system.plist',
-                                     'com.apple.ocspd.plist']
+                                     'com.apple.ocspd.plist',
+                                     'com.apple.InstallerProgress.plist']
 
             for ld in launchdaemonstoremove:
                 ldfullpath = os.path.join(baseldpath, ld)
@@ -951,24 +931,33 @@ class processNBI(object):
             # or other user-specified source of modifications.
             processdir = os.path.join(nbimount, ''.join(self.customfolder.split('/')[-1:]))
 
+            if isHighSierra:
+                processdir = os.path.join(basesystemmountpoint, 'System/Installation', ''.join(self.customfolder.split('/')[-1:]))
+
             # Remove folder being modified - distutils appears to have the easiest
             # method to recursively delete a folder. Same with recursively copying
             # back its replacement.
             print('About to process ' + processdir + ' for replacement...')
-            if os.path.exists(processdir):
-                distutils.dir_util.remove_tree(processdir)
+            if os.path.lexists(processdir):
+                if os.path.isdir(processdir):
+                    print('Removing directory %s' % processdir)
+                    distutils.dir_util.remove_tree(processdir)
+                # This may be a symlink or other non-dir instead, so double-tap just in case
+                else:
+                    print('Removing file or symlink %s' % processdir)
+                    os.unlink(processdir)
 
             # Copy over the custom folder contents. If the folder didn't exists
             # we can skip the above removal and get straight to copying.
-            if not isHighSierra:
-                os.mkdir(processdir)
-                print('Copying ' + self.customfolder + ' to ' + processdir + '...')
-                distutils.dir_util.copy_tree(self.customfolder, processdir)
-            else:
+            # os.mkdir(processdir)
+            print('Copying ' + self.customfolder + ' to ' + processdir + '...')
+            distutils.dir_util.copy_tree(self.customfolder, processdir)
+            print('Done copying ' + self.customfolder + ' to ' + processdir + '...')
+
+            # High Sierra 10.13 contains the InstallESD.dmg as part of the installer app, remove it to free up space
+            if isHighSierra:
                 if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.dmg')):
                     os.unlink(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.dmg'))
-                print('Creating DMG of' + self.customfolder + ' at ' + nbimount + '...')
-                createdmg(self.customfolder, os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport'))
 
         # Is Python or Ruby being added? If so, do the work.
         if addframeworks:
