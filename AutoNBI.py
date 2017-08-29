@@ -763,7 +763,7 @@ class processNBI(object):
                 if '.xz' in xzfile and os.path.getsize(xzfile) > 0:
                     print('Decompressing %s' % xzfile)
 
-                    xzexec = find_executable('xz')
+                    xzexec = find_executable('xz', '/usr/local/bin:/opt/bin:/usr/bin:/bin:/usr/sbin:/sbin')
 
                     if xzexec is not None:
                         print("Found xz executable at %s..." % xzexec)
