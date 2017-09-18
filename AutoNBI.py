@@ -809,7 +809,7 @@ class processNBI(object):
             # In High Sierra pretty much everything is in Core. New name. Same contents.
             # We also need to add libssl as it's no longer standard.
             payloads = { 'python': {'sourcepayloads': ['Core'],
-                                    'regex': '\"*Py*\" \"*py*\" \"*libssl*\" \"*libcrypto*\" \"*libffi.dylib*\" \"*libexpat*\"'},
+                                    'regex': '\"*Py*\" \"*py*\" \"*/etc/ssl/*\" \"*libssl*\" \"*libcrypto*\" \"*libffi.dylib*\" \"*libexpat*\"'},
                          'ruby': {'sourcepayloads': ['Core'],
                                   'regex': '\"*ruby*\" \"*lib*ruby*\" \"*Ruby.framework*\"  \"*libssl*\"'}
                        }
