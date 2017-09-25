@@ -198,7 +198,6 @@ def convertdmg(dmgpath, nbishadow):
     # Return the name of the converted DMG back to the caller
     return dmgfinal + '.sparseimage'
 
-
 def getosversioninfo(mountpoint):
     """"getosversioninfo will attempt to retrieve the OS X version and build
         from the given mount point by reading /S/L/CS/SystemVersion.plist
@@ -385,7 +384,7 @@ def pickinstaller(installers):
     return choice
 
 
-def createnbi(workdir, description, osversion, name, enabled, nbiindex, nbitype, isdefault, dmgmount):
+def createnbi(workdir, description, osversion, name, enabled, nbiindex, nbitype, isdefault, dmgmount, root=None):
     """createnbi calls the 'createNetInstall.sh' script with the
         environment variables from the createvariables dict."""
 
@@ -393,6 +392,11 @@ def createnbi(workdir, description, osversion, name, enabled, nbiindex, nbitype,
     # it expects to get: build root and DMG size. We use 7 GB to be safe.
     buildexec = os.path.join(BUILDEXECPATH, 'createNetInstall.sh')
     cmd = [buildexec, workdir, '7000']
+
+    if root:
+        if os.path.exists(os.path.join(root, 'Contents/SharedSupport/BaseSystem.dmg')):
+            print("This is a 10.13 or newer installer, sourcing BaseSystem.dmg from SharedSupport.")
+            dmgmount = root
 
     destpath = os.path.join(workdir, name + '.nbi')
     createvariables = {'destPath': destpath,
@@ -429,6 +433,14 @@ def prepworkdir(workdir):
 
     shutil.copyfile(commonsource, commontarget)
     open(os.path.join(workdir, 'createVariables.sh'), 'a').close()
+
+    if isHighSierra:
+        enterprisedict = {}
+        enterprisedict['SIU-SIP-setting'] = True
+        enterprisedict['SIU-SKEL-setting'] = False
+        enterprisedict['SIU-teamIDs-to-add'] = []
+
+        plistlib.writePlist(enterprisedict, os.path.join(workdir, '.SIUSettings'))
 
 # Example usage of the function:
 # decompress('PayloadJava.cpio.xz', 'PayloadJava.cpio')
@@ -643,7 +655,7 @@ class processNBI(object):
     def cpioextract(self, cpio_archive, pattern):
         return [ '/usr/bin/cpio -idmu --quiet -I %s %s' % (cpio_archive, pattern) ]
     def xzextract(self, xzexec, xzfile):
-        return ['/usr/local/bin/xz -d %s' % xzfile]
+        return ['%s -d %s' % (xzexec, xzfile)]
     def getfiletype(self, filepath):
         return ['/usr/bin/file', filepath]
 
@@ -751,7 +763,7 @@ class processNBI(object):
                 if '.xz' in xzfile and os.path.getsize(xzfile) > 0:
                     print('Decompressing %s' % xzfile)
 
-                    xzexec = find_executable('xz')
+                    xzexec = find_executable('xz', '/usr/local/bin:/opt/bin:/usr/bin:/bin:/usr/sbin:/sbin')
 
                     if xzexec is not None:
                         print("Found xz executable at %s..." % xzexec)
@@ -793,8 +805,17 @@ class processNBI(object):
             addframeworks.append('ruby')
 
         # Define the needed source PKGs for our frameworks
-        if isSierra:
-            # In ElCap pretty much everything is in Essentials.
+        if isHighSierra:
+            # In High Sierra pretty much everything is in Core. New name. Same contents.
+            # We also need to add libssl as it's no longer standard.
+            payloads = { 'python': {'sourcepayloads': ['Core'],
+                                    'regex': '\"*Py*\" \"*py*\" \"*/etc/ssl/*\" \"*libssl*\" \"*libcrypto*\" \"*libffi.dylib*\" \"*libexpat*\"'},
+                         'ruby': {'sourcepayloads': ['Core'],
+                                  'regex': '\"*ruby*\" \"*lib*ruby*\" \"*Ruby.framework*\"  \"*libssl*\"'}
+                       }
+
+        elif isSierra:
+            # In Sierra pretty much everything is in Essentials.
             # We also need to add libssl as it's no longer standard.
             payloads = { 'python': {'sourcepayloads': ['Essentials'],
                                     'regex': '\"*Py*\" \"*py*\" \"*libssl*\" \"*libffi.dylib*\" \"*libexpat*\"'},
@@ -817,19 +838,31 @@ class processNBI(object):
                        }
         # Set 'modifybasesystem' if any frameworks are to be added, we're building
         #   an ElCap NBI or if we're adding a custom Utilites plist
-        modifybasesystem = (len(addframeworks) > 0 or isElCap or isSierra or self.utilplist)
+        modifybasesystem = (len(addframeworks) > 0 or isElCap or isSierra or isHighSierra or self.utilplist)
 
         # If we need to make modifications to BaseSystem.dmg we mount it r/w
         if modifybasesystem:
             # Setup the BaseSystem.dmg for modification by mounting it with a shadow
             # and resizing the shadowed image, 10 GB should be good. We'll shrink
             # it again later.
-            basesystemshadow = os.path.join(TMPDIR, 'BaseSystem.shadow')
-            basesystemdmg = os.path.join(nbimount, 'BaseSystem.dmg')
+            if not isHighSierra:
+                basesystemshadow = os.path.join(TMPDIR, 'BaseSystem.shadow')
+                basesystemdmg = os.path.join(nbimount, 'BaseSystem.dmg')
+            else:
+                print("Install source is 10.13 or newer, BaseSystem.dmg is in an alternate location...")
+                basesystemshadow = os.path.join(TMPDIR, 'BaseSystem.shadow')
+                basesystemdmg = os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/BaseSystem.dmg')
 
+            print("Running self.dmgresize...")
             result = self.runcmd(self.dmgresize(basesystemdmg, basesystemshadow, '8G'))
+            print("Running self.dmgattach...")
             plist = self.runcmd(self.dmgattach(basesystemdmg, basesystemshadow))
+
+            # print("Contents of plist:\n------\n%s\n------" % plist)
+
             basesystemplist = plistlib.readPlistFromString(plist)
+            
+            # print("Contents of basesystemplist:\n------\n%s\n------" % basesystemplist)
 
             for entity in basesystemplist['system-entities']:
                 if 'mount-point' in entity:
@@ -838,7 +871,7 @@ class processNBI(object):
         # OS X 10.11 El Capitan triggers an Installer Progress app which causes
         #   custom installer workflows using 'Packages/Extras' to fail so
         #   we need to nix it. Thanks, Apple.
-        if isSierra:
+        if isSierra or isHighSierra:
             rcdotinstallpath = os.path.join(basesystemmountpoint, 'private/etc/rc.install')
             rcdotinstallro = open(rcdotinstallpath, "r")
             rcdotinstalllines = rcdotinstallro.readlines()
@@ -873,7 +906,7 @@ class processNBI(object):
                     rcdotinstallw.write(line)
             rcdotinstallw.close()
 
-        if isElCap or isSierra:
+        if isElCap or isSierra or isHighSierra:
             # Reports of slow NetBoot speeds with 10.11+ have lead others to
             #   remove various launch items that seem to cause this. Remove some
             #   of those as a stab at speeding things back up.
@@ -881,7 +914,8 @@ class processNBI(object):
             launchdaemonstoremove = ['com.apple.locationd.plist',
                                      'com.apple.lsd.plist',
                                      'com.apple.tccd.system.plist',
-                                     'com.apple.ocspd.plist']
+                                     'com.apple.ocspd.plist',
+                                     'com.apple.InstallerProgress.plist']
 
             for ld in launchdaemonstoremove:
                 ldfullpath = os.path.join(baseldpath, ld)
@@ -897,18 +931,33 @@ class processNBI(object):
             # or other user-specified source of modifications.
             processdir = os.path.join(nbimount, ''.join(self.customfolder.split('/')[-1:]))
 
+            if isHighSierra:
+                processdir = os.path.join(basesystemmountpoint, 'System/Installation', ''.join(self.customfolder.split('/')[-1:]))
+
             # Remove folder being modified - distutils appears to have the easiest
             # method to recursively delete a folder. Same with recursively copying
             # back its replacement.
             print('About to process ' + processdir + ' for replacement...')
-            if os.path.exists(processdir):
-                distutils.dir_util.remove_tree(processdir)
+            if os.path.lexists(processdir):
+                if os.path.isdir(processdir):
+                    print('Removing directory %s' % processdir)
+                    distutils.dir_util.remove_tree(processdir)
+                # This may be a symlink or other non-dir instead, so double-tap just in case
+                else:
+                    print('Removing file or symlink %s' % processdir)
+                    os.unlink(processdir)
 
             # Copy over the custom folder contents. If the folder didn't exists
             # we can skip the above removal and get straight to copying.
-            os.mkdir(processdir)
+            # os.mkdir(processdir)
             print('Copying ' + self.customfolder + ' to ' + processdir + '...')
             distutils.dir_util.copy_tree(self.customfolder, processdir)
+            print('Done copying ' + self.customfolder + ' to ' + processdir + '...')
+
+            # High Sierra 10.13 contains the InstallESD.dmg as part of the installer app, remove it to free up space
+            if isHighSierra:
+                if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.dmg')):
+                    os.unlink(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.dmg'))
 
         # Is Python or Ruby being added? If so, do the work.
         if addframeworks:
@@ -1003,6 +1052,21 @@ class processNBI(object):
             # Rename the finalized DMG to its intended name BaseSystem.dmg
             shutil.copyfile(basesystemro, basesystemdmg)
 
+            # For High Sierra, remove the chunklists for InstallESD and BaseSystem since they won't match
+            # This includes removing chunklist entry from InstallInfo.plist
+            if isHighSierra:
+                if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/BaseSystem.chunklist')):
+                    os.unlink(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/BaseSystem.chunklist'))
+                if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.chunklist')):
+                    os.unlink(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallESD.chunklist'))
+
+                installinfoplist = plistlib.readPlist(os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallInfo.plist'))
+                if installinfoplist['System Image Info'].get('chunklistid'):
+                    del installinfoplist['System Image Info']['chunklistid']
+                if installinfoplist['System Image Info'].get('chunklistURL'):
+                    del installinfoplist['System Image Info']['chunklistURL']
+                plistlib.writePlist(installinfoplist, os.path.join(nbimount, 'Install macOS High Sierra Beta.app/Contents/SharedSupport/InstallInfo.plist'))
+
         # We're done, unmount the outer NBI DMG.
         unmountdmg(nbimount)
 
@@ -1024,8 +1088,12 @@ TMPDIR = None
 sysidenabled = []
 isElCap = False
 isSierra = False
+isHighSierra = False
 
-if LooseVersion(_get_mac_ver()) >= "10.12":
+if LooseVersion(_get_mac_ver()) >= "10.13":
+    BUILDEXECPATH = ('/System/Library/PrivateFrameworks/SIUFoundation.framework/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
+    isHighSierra = True
+elif LooseVersion(_get_mac_ver()) >= "10.12":
     BUILDEXECPATH = ('/System/Library/PrivateFrameworks/SIUFoundation.framework/XPCServices/com.apple.SIUAgent.xpc/Contents/Resources')
     isSierra = True
 elif LooseVersion(_get_mac_ver()) >= "10.11":
@@ -1167,7 +1235,7 @@ def main():
 
     # Set 'modifydmg' if any of 'addcustom', 'addpython' or 'addruby' are true
     addcustom = len(customfolder) > 0
-    modifynbi = (addcustom or addpython or addruby or isElCap or isSierra)
+    modifynbi = (addcustom or addpython or addruby or isElCap or isSierra or isHighSierra)
 
     # Spin up a tmp dir for mounting
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
@@ -1225,8 +1293,15 @@ def main():
             print 'Install source is neither InstallESD nor Recovery drive, this is bad.'
             sys.exit(-1)
 
-        osversion, osbuild, unused = getosversioninfo(mount)
-        description = 'OS X ' + osversion + '-' + osbuild
+        if not isHighSierra:
+            osversion, osbuild, unused = getosversioninfo(mount)
+        else:
+            osversion, osbuild, unused = getosversioninfo(os.path.join(root, 'Contents/SharedSupport'))
+
+        if not isSierra or not isHighSierra:
+            description = "OS X %s - %s" % (osversion, osbuild)
+        else:
+            description = "macOS %s - %s" % (osversion, osbuild)
 
         # Prep our build root for NBI creation
         print 'Prepping ' + destination + ' with source mounted at ' + mount
@@ -1235,7 +1310,7 @@ def main():
         # Now move on to the actual NBI creation
         print 'Creating NBI at ' + destination
         print 'Base NBI Operating System is ' + osversion
-        createnbi(destination, description, osversion, name, enablenbi, nbiindex, nbitype, isdefault, mount)
+        createnbi(destination, description, osversion, name, enablenbi, nbiindex, nbitype, isdefault, mount, root)
 
     # Make our modifications if any were provided from the CLI
     if modifynbi:
@@ -1259,6 +1334,8 @@ def main():
 
         # Run makerw() to enable modifications
         nbimount, nbishadow = nbi.makerw(netinstallpath)
+
+        print("NBI mounted at %s" % nbimount)
 
         nbi.modify(nbimount, netinstallpath, nbishadow, mount)
 
