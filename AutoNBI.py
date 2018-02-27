@@ -1060,12 +1060,15 @@ class processNBI(object):
                 if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallESD.chunklist')):
                     os.unlink(os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallESD.chunklist'))
 
-                installinfoplist = plistlib.readPlist(os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallInfo.plist'))
-                if installinfoplist['System Image Info'].get('chunklistid'):
-                    del installinfoplist['System Image Info']['chunklistid']
-                if installinfoplist['System Image Info'].get('chunklistURL'):
-                    del installinfoplist['System Image Info']['chunklistURL']
-                plistlib.writePlist(installinfoplist, os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallInfo.plist'))
+                installinfofile = os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallInfo.plist')
+                if os.path.exists(installinfofile):
+                    installinfoplist = plistlib.readPlist(installinfofile)
+                    if 'System Image Info' in installinfoplist:
+                        if installinfoplist['System Image Info'].get('chunklistid'):
+                            del installinfoplist['System Image Info']['chunklistid']
+                        if installinfoplist['System Image Info'].get('chunklistURL'):
+                            del installinfoplist['System Image Info']['chunklistURL']
+                        plistlib.writePlist(installinfoplist, os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallInfo.plist'))
 
         # We're done, unmount the outer NBI DMG.
         unmountdmg(nbimount)
