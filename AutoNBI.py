@@ -1240,6 +1240,8 @@ def main():
     addcustom = len(customfolder) > 0
     modifynbi = (addcustom or addpython or addruby or isElCap or isSierra or isHighSierra)
 
+    # If TMPDIR is set in the system we should use that
+    TMPDIR = os.getenv('TMPDIR')
     # Spin up a tmp dir for mounting
     TMPDIR = tempfile.mkdtemp(dir=TMPDIR)
 
