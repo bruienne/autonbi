@@ -851,7 +851,8 @@ class processNBI(object):
             else:
                 print("Install source is 10.13 or newer, BaseSystem.dmg is in an alternate location...")
                 basesystemshadow = os.path.join(TMPDIR, 'BaseSystem.shadow')
-                basesystemdmg = os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/BaseSystem.dmg')
+                highSierraApp = [f for f in os.listdir(nbimount) if os.path.splitext(f)[1] == ".app"][0]
+                basesystemdmg = os.path.join(nbimount, highSierraApp, 'Contents/SharedSupport/BaseSystem.dmg')
 
             print("Running self.dmgresize...")
             result = self.runcmd(self.dmgresize(basesystemdmg, basesystemshadow, '8G'))
@@ -956,8 +957,8 @@ class processNBI(object):
 
             # High Sierra 10.13 contains the InstallESD.dmg as part of the installer app, remove it to free up space
             if isHighSierra:
-                if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallESD.dmg')):
-                    os.unlink(os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallESD.dmg'))
+                if os.path.exists(os.path.join(nbimount, highSierraApp, 'Contents/SharedSupport/InstallESD.dmg')):
+                    os.unlink(os.path.join(nbimount, highSierraApp, 'Contents/SharedSupport/InstallESD.dmg'))
 
         # Is Python or Ruby being added? If so, do the work.
         if addframeworks:
@@ -1055,12 +1056,12 @@ class processNBI(object):
             # For High Sierra, remove the chunklists for InstallESD and BaseSystem since they won't match
             # This includes removing chunklist entry from InstallInfo.plist
             if isHighSierra:
-                if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/BaseSystem.chunklist')):
-                    os.unlink(os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/BaseSystem.chunklist'))
-                if os.path.exists(os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallESD.chunklist')):
-                    os.unlink(os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallESD.chunklist'))
+                if os.path.exists(os.path.join(nbimount, highSierraApp, 'Contents/SharedSupport/BaseSystem.chunklist')):
+                    os.unlink(os.path.join(nbimount, highSierraApp, 'Contents/SharedSupport/BaseSystem.chunklist'))
+                if os.path.exists(os.path.join(nbimount, highSierraApp, 'Contents/SharedSupport/InstallESD.chunklist')):
+                    os.unlink(os.path.join(nbimount, highSierraApp, 'Contents/SharedSupport/InstallESD.chunklist'))
 
-                installinfofile = os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallInfo.plist')
+                installinfofile = os.path.join(nbimount, highSierraApp, 'Contents/SharedSupport/InstallInfo.plist')
                 if os.path.exists(installinfofile):
                     installinfoplist = plistlib.readPlist(installinfofile)
                     if 'System Image Info' in installinfoplist:
@@ -1068,7 +1069,7 @@ class processNBI(object):
                             del installinfoplist['System Image Info']['chunklistid']
                         if installinfoplist['System Image Info'].get('chunklistURL'):
                             del installinfoplist['System Image Info']['chunklistURL']
-                        plistlib.writePlist(installinfoplist, os.path.join(nbimount, 'Install macOS High Sierra.app/Contents/SharedSupport/InstallInfo.plist'))
+                        plistlib.writePlist(installinfoplist, os.path.join(nbimount, highSierraApp, 'Contents/SharedSupport/InstallInfo.plist'))
 
         # We're done, unmount the outer NBI DMG.
         unmountdmg(nbimount)
